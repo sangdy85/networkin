@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from './context/AuthContext';
 
@@ -9,6 +9,47 @@ export default function EmployeeDashboard() {
   
   const [scheduleTab, setScheduleTab] = useState('today'); // 'today' | 'weekly'
   const [approvalTab, setApprovalTab] = useState('pending'); // 'pending' | 'ref'
+
+  // DB에서 읽어온 실제 동적 데이타 상태
+  const [dashboardData, setDashboardData] = useState({
+    iptCount: 0,
+    networkCount: 0,
+    projectCount: 0,
+    documentCount: 0,
+    recentProjects: [],
+    recentDocuments: []
+  });
+
+  useEffect(() => {
+    fetchDashboardSummary();
+  }, []);
+
+  const fetchDashboardSummary = async () => {
+    try {
+      const [iptRes, netRes, projRes, docRes] = await Promise.all([
+        fetch('/api/ipt').catch(() => null),
+        fetch('/api/network').catch(() => null),
+        fetch('/api/projects').catch(() => null),
+        fetch('/api/documents').catch(() => null)
+      ]);
+
+      const ipt = iptRes?.ok ? await iptRes.json() : [];
+      const net = netRes?.ok ? await netRes.json() : [];
+      const proj = projRes?.ok ? await projRes.json() : [];
+      const doc = docRes?.ok ? await docRes.json() : [];
+
+      setDashboardData({
+        iptCount: ipt.length,
+        networkCount: net.length,
+        projectCount: proj.length,
+        documentCount: doc.length,
+        recentProjects: proj.slice(0, 3),
+        recentDocuments: doc.slice(0, 3)
+      });
+    } catch (e) {
+      console.warn('Failed to load dashboard summary', e);
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -39,29 +80,29 @@ export default function EmployeeDashboard() {
       <div className="grid-stats">
         <div className="stat-card">
           <div className="stat-label">📬 메일함 용량</div>
-          <div className="stat-value" style={{ color: '#00B4D8', fontSize: '1.5rem' }}>2.42 GB <span style={{ fontSize: '0.9rem', color: '#aaa' }}>/ 4 GB</span></div>
+          <div className="stat-value" style={{ color: '#00B4D8', fontSize: '1.5rem' }}>0.00 GB <span style={{ fontSize: '0.9rem', color: '#aaa' }}>/ 4 GB</span></div>
           <div className="progress-bar-bg" style={{ marginTop: '0.5rem' }}>
-            <div className="progress-bar-fill" style={{ width: '60.5%' }}></div>
+            <div className="progress-bar-fill" style={{ width: '0%' }}></div>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">📅 금일 개인/부서 일정</div>
-          <div className="stat-value" style={{ color: '#FFB703' }}>3 <span style={{ fontSize: '1rem' }}>건</span></div>
-          <div className="stat-desc" style={{ color: '#aaa' }}>오전 현장 시공 1건 / 회의 1건</div>
+          <div className="stat-value" style={{ color: '#FFB703' }}>0 <span style={{ fontSize: '1rem' }}>건</span></div>
+          <div className="stat-desc" style={{ color: '#aaa' }}>등록된 오늘 일정이 없습니다.</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">📑 결재 대기 (미결문서)</div>
-          <div className="stat-value" style={{ color: '#E63946' }}>1 <span style={{ fontSize: '1rem' }}>건</span></div>
-          <div className="stat-desc" style={{ color: '#E63946' }}>⚡ 결재 진행 필요</div>
+          <div className="stat-value" style={{ color: '#38B000' }}>0 <span style={{ fontSize: '1rem' }}>건</span></div>
+          <div className="stat-desc" style={{ color: '#aaa' }}>대기 중인 결재 문서가 없습니다.</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">💬 안 읽은 쪽지 / 알림</div>
-          <div className="stat-value" style={{ color: '#38B000' }}>2 <span style={{ fontSize: '1rem' }}>건</span></div>
-          <div className="stat-desc" style={{ color: '#aaa' }}>전자결재 완료 알림 2건</div>
+          <div className="stat-value" style={{ color: '#38B000' }}>0 <span style={{ fontSize: '1rem' }}>건</span></div>
+          <div className="stat-desc" style={{ color: '#aaa' }}>새로운 알림이 없습니다.</div>
         </div>
       </div>
 
-      {/* 3. Main 2-Column Personal Work Grid (Matching User Screenshot Layout) */}
+      {/* 3. Main 2-Column Personal Work Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '1.5rem', alignItems: 'start' }}>
         
         {/* Left Column: Personal Work Modules */}
@@ -76,36 +117,8 @@ export default function EmployeeDashboard() {
               <Link href="/mail" style={{ fontSize: '0.8rem', color: 'var(--color-accent)' }}>+ MORE</Link>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem 1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', minWidth: '60px' }}>장기범</span>
-                  <span style={{ fontSize: '0.85rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    RE: Re:RE: Re:[SBI저축은행]원방빌딩 11층 케이블 테스트 결과 보고
-                  </span>
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#aaa', marginLeft: '1rem', flexShrink: 0 }}>2026-08-19</span>
-              </div>
-
-              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem 1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', minWidth: '60px' }}>김영석</span>
-                  <span style={{ fontSize: '0.85rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    [SBI저축은행] 시스코 OS 업그레이드 작업 일정 수정 건
-                  </span>
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#aaa', marginLeft: '1rem', flexShrink: 0 }}>2026-08-18</span>
-              </div>
-
-              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem 1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-accent)', minWidth: '60px' }}>류영철</span>
-                  <span style={{ fontSize: '0.85rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    RE: [넷워크인] 시스코 스위치 및 라우터 임대 발주 요청
-                  </span>
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#aaa', marginLeft: '1rem', flexShrink: 0 }}>2026-08-18</span>
-              </div>
+            <div style={{ padding: '1.5rem 1rem', textAlign: 'center', color: '#aaa', fontSize: '0.88rem', background: 'rgba(0,0,0,0.15)', borderRadius: '8px' }}>
+              수신된 최근 메일이 없습니다.
             </div>
           </div>
 
@@ -118,26 +131,8 @@ export default function EmployeeDashboard() {
               <span style={{ fontSize: '0.8rem', color: 'var(--color-accent)', cursor: 'pointer' }}>+ MORE</span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem 1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#38B000', minWidth: '60px' }}>장기범</span>
-                  <span style={{ fontSize: '0.85rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    내가 올린 전자결재 문서가 종결(전결) 되었습니다. [천안시공건]
-                  </span>
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#aaa', marginLeft: '1rem', flexShrink: 0 }}>2026-08-19 09:37</span>
-              </div>
-
-              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem 1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#FFB703', minWidth: '60px' }}>이동중</span>
-                  <span style={{ fontSize: '0.85rem', color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    내가 올린 전자결재 문서가 종결(전결) 되었습니다.
-                  </span>
-                </div>
-                <span style={{ fontSize: '0.75rem', color: '#aaa', marginLeft: '1rem', flexShrink: 0 }}>2026-08-13 14:43</span>
-              </div>
+            <div style={{ padding: '1.5rem 1rem', textAlign: 'center', color: '#aaa', fontSize: '0.88rem', background: 'rgba(0,0,0,0.15)', borderRadius: '8px' }}>
+              등록된 쪽지 및 알림이 없습니다.
             </div>
           </div>
 
@@ -154,8 +149,8 @@ export default function EmployeeDashboard() {
                 <span></span><span></span><span></span><span></span><span></span><span></span><span style={{ color: '#00B4D8' }}>01</span>
                 <span style={{ color: '#E63946' }}>02</span><span>03</span><span>04</span><span>05</span><span>06</span><span>07</span><span style={{ color: '#00B4D8' }}>08</span>
                 <span style={{ color: '#E63946' }}>09</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span style={{ color: '#00B4D8' }}>15</span>
-                <span style={{ color: '#E63946' }}>16</span><span>17</span><span>18</span><span style={{ background: 'var(--color-accent)', color: '#000', borderRadius: '50%', fontWeight: 700 }}>19</span><span>20</span><span>21</span><span style={{ color: '#00B4D8' }}>22</span>
-                <span style={{ color: '#E63946' }}>23</span><span>24</span><span>25</span><span>26</span><span>27</span><span>28</span><span style={{ color: '#00B4D8' }}>29</span>
+                <span style={{ color: '#E63946' }}>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span><span style={{ color: '#00B4D8' }}>22</span>
+                <span style={{ color: '#E63946' }}>23</span><span>24</span><span style={{ background: 'var(--color-accent)', color: '#000', borderRadius: '50%', fontWeight: 700 }}>25</span><span>26</span><span>27</span><span>28</span><span style={{ color: '#00B4D8' }}>29</span>
                 <span style={{ color: '#E63946' }}>30</span><span>31</span>
               </div>
             </div>
@@ -168,27 +163,19 @@ export default function EmployeeDashboard() {
                   className={`btn ${scheduleTab === 'today' ? 'btn-accent' : 'btn-secondary'}`}
                   style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
                 >
-                  오늘일정 (3)
+                  오늘일정 (0)
                 </button>
                 <button
                   onClick={() => setScheduleTab('weekly')}
                   className={`btn ${scheduleTab === 'weekly' ? 'btn-accent' : 'btn-secondary'}`}
                   style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
                 >
-                  주간일정 (5)
+                  주간일정 (0)
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div style={{ background: 'rgba(0,180,216,0.1)', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>09:30</span> 천안 A공장 UTP 배선 2차 현장 시공
-                </div>
-                <div style={{ background: 'rgba(146,144,195,0.1)', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#9290C3', fontWeight: 700 }}>13:00</span> 주간 네트워크 사업부 팀장 회의
-                </div>
-                <div style={{ background: 'rgba(255,183,3,0.1)', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.85rem' }}>
-                  <span style={{ color: '#FFB703', fontWeight: 700 }}>15:30</span> 아산 B동 서버실 광케이블 월간 점검
-                </div>
+              <div style={{ padding: '1rem', textAlign: 'center', color: '#aaa', fontSize: '0.85rem' }}>
+                등록된 일정이 없습니다.
               </div>
             </div>
 
@@ -203,37 +190,27 @@ export default function EmployeeDashboard() {
                   className={`btn ${approvalTab === 'pending' ? 'btn-accent' : 'btn-secondary'}`}
                   style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}
                 >
-                  미결문서 (1)
+                  미결문서 (0)
                 </button>
                 <button
                   onClick={() => setApprovalTab('ref')}
                   className={`btn ${approvalTab === 'ref' ? 'btn-accent' : 'btn-secondary'}`}
                   style={{ fontSize: '0.8rem', padding: '0.3rem 0.7rem' }}
                 >
-                  참조문서 (2)
+                  참조문서 (0)
                 </button>
               </div>
               <span style={{ fontSize: '0.8rem', color: 'var(--color-accent)', cursor: 'pointer' }}>+ MORE</span>
             </div>
 
-            {approvalTab === 'pending' ? (
-              <div style={{ background: 'rgba(230,57,70,0.08)', padding: '0.8rem 1rem', borderRadius: '8px', borderLeft: '3px solid #E63946', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>[결재대기] (주)한빛 스마트오피스 IPT 장비 추가 기안서</span>
-                  <div style={{ fontSize: '0.75rem', color: '#aaa', marginTop: '0.2rem' }}>기안자: 박민우 대리 | 결재선: 이강욱 팀장</div>
-                </div>
-                <button className="btn btn-accent" style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}>결재하기</button>
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.85rem', color: '#aaa', fontStyle: 'italic', padding: '0.5rem 0' }}>
-                참조 및 열람 가능한 결재 문서는 2건입니다.
-              </div>
-            )}
+            <div style={{ padding: '1rem', textAlign: 'center', color: '#aaa', fontSize: '0.85rem' }}>
+              {approvalTab === 'pending' ? '대기 중인 결재 문서가 없습니다.' : '참조 또는 열람 문서가 없습니다.'}
+            </div>
           </div>
 
         </div>
 
-        {/* Right Sidebar Section (Widgets matching User Screenshot) */}
+        {/* Right Sidebar Section */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
           {/* 전체 공지사항 */}
@@ -242,24 +219,9 @@ export default function EmployeeDashboard() {
               <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--color-accent)' }}>전체공지</h3>
               <Link href="/board" style={{ fontSize: '0.75rem', color: '#aaa' }}>+ MORE</Link>
             </div>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem' }}>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· [3분기] 2026 직무교육 실시 안내</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2026-08-10</span>
-              </li>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· 카페24 웹메일 관련 공지</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2026-07-28</span>
-              </li>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· [공지사항] 사내 경비 지급 정산</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2026-04-02</span>
-              </li>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· [공지사항] 시간 외 근무 지침</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2026-04-02</span>
-              </li>
-            </ul>
+            <div style={{ fontSize: '0.82rem', color: '#aaa', textAlign: 'center', padding: '0.8rem 0' }}>
+              등록된 공지사항이 없습니다.
+            </div>
           </div>
 
           {/* 전자결재 */}
@@ -269,52 +231,52 @@ export default function EmployeeDashboard() {
               <span style={{ fontSize: '0.75rem', color: '#aaa' }}>+ MORE</span>
             </div>
             <div style={{ fontSize: '0.82rem', color: '#aaa', textAlign: 'center', padding: '0.8rem 0' }}>
-              새로운 전자결재가 완료되었습니다.
+              완료된 전자결재가 없습니다.
             </div>
           </div>
 
-          {/* 일정업무 */}
+          {/* 시공현장 / 프로젝트 현황 */}
           <div className="panel" style={{ marginBottom: 0, padding: '1.2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem', borderBottom: '2px solid #3B82F6', paddingBottom: '0.4rem' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#3B82F6' }}>일정업무</h3>
-              <Link href="/schedule" style={{ fontSize: '0.75rem', color: '#aaa' }}>+ MORE</Link>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#3B82F6' }}>최근 시공현장 ({dashboardData.projectCount})</h3>
+              <Link href="/projects" style={{ fontSize: '0.75rem', color: '#aaa' }}>+ MORE</Link>
             </div>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem' }}>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· [부서] SBI일산지점 레...</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2026-08-29</span>
-              </li>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· [부서] AIA생명 VG IOS...</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2026-08-22</span>
-              </li>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· [개인] [SBI저축은행] 삼...</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2026-08-20</span>
-              </li>
-            </ul>
+            {dashboardData.recentProjects.length > 0 ? (
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem' }}>
+                {dashboardData.recentProjects.map(p => (
+                  <li key={p.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· {p.name}</span>
+                    <span style={{ color: '#aaa', fontSize: '0.75rem' }}>{p.status}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div style={{ fontSize: '0.82rem', color: '#aaa', textAlign: 'center', padding: '0.8rem 0' }}>
+                등록된 프로젝트가 없습니다.
+              </div>
+            )}
           </div>
 
-          {/* 최근게시물 */}
+          {/* 최근 문서 (최근게시물 위치 대체) */}
           <div className="panel" style={{ marginBottom: 0, padding: '1.2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem', borderBottom: '2px solid #9290C3', paddingBottom: '0.4rem' }}>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#9290C3' }}>최근게시물</h3>
-              <Link href="/board" style={{ fontSize: '0.75rem', color: '#aaa' }}>+ MORE</Link>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#9290C3' }}>최근 등록 문서 ({dashboardData.documentCount})</h3>
+              <Link href="/documents" style={{ fontSize: '0.75rem', color: '#aaa' }}>+ MORE</Link>
             </div>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem' }}>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· KB국민은행 정기점검서</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2026-08-19</span>
-              </li>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· 롯데 cimc 업그레이드</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2025-10-17</span>
-              </li>
-              <li style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· 환경안전 보건 소식지 24...</span>
-                <span style={{ color: '#aaa', fontSize: '0.75rem' }}>2024-11-25</span>
-              </li>
-            </ul>
+            {dashboardData.recentDocuments.length > 0 ? (
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.82rem' }}>
+                {dashboardData.recentDocuments.map(d => (
+                  <li key={d.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>· {d.title}</span>
+                    <span style={{ color: '#aaa', fontSize: '0.75rem' }}>{d.date}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div style={{ fontSize: '0.82rem', color: '#aaa', textAlign: 'center', padding: '0.8rem 0' }}>
+                등록된 최근 문서가 없습니다.
+              </div>
+            )}
           </div>
 
           {/* QUICK LINK */}
@@ -333,7 +295,7 @@ export default function EmployeeDashboard() {
 
       </div>
 
-      {/* 4. Bottom Section: 아인스텍 핵심 사업 부문별 현황 (MOVED TO VERY BOTTOM) */}
+      {/* 4. Bottom Section: 아인스텍 핵심 사업 부문별 현황 */}
       <div className="panel" style={{ marginTop: '1rem', marginBottom: 0 }}>
         <div className="panel-header">
           <h2 className="panel-title">🏢 아인스텍 / Networkin 핵심 사업 부문별 현황</h2>

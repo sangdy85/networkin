@@ -35,39 +35,20 @@ const PRESET_PROVIDERS = {
 
 export default function MailPage() {
   const [activeTab, setActiveTab] = useState('inbox');
-  const [selectedMail, setSelectedMail] = useState({
-    id: 3,
-    sender: '경영지원팀',
-    email: 'admin@einstec.com',
-    subject: '[공지] 2026년 3분기 현장 안전교육 및 인프라 파트 세미나',
-    snippet: '임직원 여러분 안녕하십니까. 3분기 필수 안전 보건 교육 및 IT 인프라 신기술 세미나가 금요일 개최됩니다.',
-    date: '8월 17일',
-    unread: false,
-    hasAttachment: true,
-    isExternal: false,
-    content: `임직원 여러분, 안녕하십니까. 경영지원팀입니다.
-
-2026년 3분기 현장 통신배선 안전 보건 교육 및 신기술 세미나를 아래와 같이 실시하오니 전원 참석해 주시기 바랍니다.
-
-- 일시: 2026년 8월 21일 (금) 14:00 ~ 16:00
-- 장소: 본사 2층 대회의실
-- 대상: 네트워크/인프라 사업부 전 직원
-
-첨부된 세미나 교재를 미리 숙지해 오시기 바랍니다.`
-  });
+  const [selectedMail, setSelectedMail] = useState(null);
 
   const [isComposing, setIsComposing] = useState(false);
 
   // External Account Settings Modal State
   const [isExtModalOpen, setIsExtModalOpen] = useState(false);
   const [extProvider, setExtProvider] = useState('naver');
-  const [extEmail, setExtEmail] = useState('lku_einstec@naver.com');
-  const [extPassword, setExtPassword] = useState('••••••••••••');
+  const [extEmail, setExtEmail] = useState('');
+  const [extPassword, setExtPassword] = useState('');
   const [extIncomingServer, setExtIncomingServer] = useState('pop.naver.com');
   const [extIncomingPort, setExtIncomingPort] = useState('995');
   const [extOutgoingServer, setExtOutgoingServer] = useState('smtp.naver.com');
   const [extOutgoingPort, setExtOutgoingPort] = useState('465');
-  const [isAccountLinked, setIsAccountLinked] = useState(true);
+  const [isAccountLinked, setIsAccountLinked] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Mail Compose Header State
@@ -118,80 +99,7 @@ export default function MailPage() {
   const [autoSave, setAutoSave] = useState('사용함');
   const [encoding, setEncoding] = useState('유니코드 (UTF-8)');
 
-  const [mails, setMails] = useState([
-    {
-      id: 1,
-      sender: '김철수 과장 (시공팀)',
-      email: 'cs.kim@einstec.com',
-      subject: '[긴급] 천안 A공장 생산라인 광케이블 추가 자재 요청',
-      snippet: '팀장님, 천안 A공장 2구역 현장 시공 중 추가 광케이블 패치코드 20m 10개가 더 필요한 상황입니다...',
-      date: '오전 11:25',
-      unread: true,
-      hasAttachment: true,
-      isExternal: false,
-      content: `안녕하세요 이강욱 팀장님, 시공팀 김철수 과장입니다.
-
-현재 천안 A공장 생산라인 2구역 네트워크 배선 공사를 진행 중에 있습니다.
-도면 수정으로 인해 광케이블 패치코드(SC-LC 5m 및 20m) 10개가 긴급히 추가 수급되어야 할 것 같습니다.
-
-자재실 출고 승인 부탁드립니다.
-감사합니다.`
-    },
-    {
-      id: 2,
-      sender: '(주)대성물류 전산팀 (외부메일)',
-      email: 'it@daeseong.co.kr',
-      subject: '[외부수신] IPT 콜센터 시스템 유틸리티 업데이트 건',
-      snippet: '아인스텍 담당자님, 당사 IPT 콜센터 IPCC 서버 점검 일정을 다음 주 화요일로 조율하고자 합니다.',
-      date: '어제 16:40',
-      unread: true,
-      hasAttachment: false,
-      isExternal: true,
-      content: `안녕하세요, (주)대성물류 전산팀 박지훈 대리입니다.
-
-아인스텍에서 구축해 주신 IPT 및 IPCC 시스템의 유틸리티 패치 및 정기 점검 일정을 다음 주 화요일(8/25) 오전 10시로 진행 가능할지 문의드립니다.
-
-확인 후 답장 부탁드립니다.`
-    },
-    {
-      id: 3,
-      sender: '경영지원팀',
-      email: 'admin@einstec.com',
-      subject: '[공지] 2026년 3분기 현장 안전교육 및 인프라 파트 세미나',
-      snippet: '임직원 여러분 안녕하십니까. 3분기 필수 안전 보건 교육 및 IT 인프라 신기술 세미나가 금요일 개최됩니다.',
-      date: '8월 17일',
-      unread: false,
-      hasAttachment: true,
-      isExternal: false,
-      content: `임직원 여러분, 안녕하십니까. 경영지원팀입니다.
-
-2026년 3분기 현장 통신배선 안전 보건 교육 및 신기술 세미나를 아래와 같이 실시하오니 전원 참석해 주시기 바랍니다.
-
-- 일시: 2026년 8월 21일 (금) 14:00 ~ 16:00
-- 장소: 본사 2층 대회의실
-- 대상: 네트워크/인프라 사업부 전 직원
-
-첨부된 세미나 교재를 미리 숙지해 오시기 바랍니다.`
-    },
-    {
-      id: 4,
-      sender: 'Cisco Systems Korea (외부수신)',
-      email: 'support@cisco.com',
-      subject: '[외부수신] Cisco Catalyst 9300 스위치 보안 펌웨어 권고안',
-      snippet: 'Dear Customer, Important security firmware update notice for Catalyst switches...',
-      date: '8월 14일',
-      unread: false,
-      hasAttachment: true,
-      isExternal: true,
-      content: `Dear Einstec Network Engineering Team,
-
-This is an official security notice regarding Cisco Catalyst 9300 switch series firmware vulnerability fix.
-Please review the attached patch guide and upgrade your network switches.
-
-Best regards,
-Cisco TAC Technical Support`
-    }
-  ]);
+  const [mails, setMails] = useState([]);
 
   // Handle Provider Change in Account Settings Modal
   const handleProviderSelect = (key) => {
