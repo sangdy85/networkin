@@ -46,6 +46,37 @@ export async function POST(req) {
   }
 }
 
+// PUT /api/documents - Update Document
+export async function PUT(req) {
+  try {
+    const body = await req.json();
+    const { id, code, title, category, author, version, date, fileSize, fileName, description } = body;
+
+    const stmt = db.prepare(`
+      UPDATE documents
+      SET code = ?, title = ?, category = ?, author = ?, version = ?, date = ?, file_size = ?, file_name = ?, description = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(
+      code,
+      title,
+      category,
+      author,
+      version,
+      date,
+      fileSize,
+      fileName,
+      description || '',
+      id
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 // DELETE /api/documents - Delete Document
 export async function DELETE(req) {
   try {

@@ -74,7 +74,7 @@ export default function DocumentsPage() {
   };
 
   // Save Document (Create / Edit)
-  const handleSaveSubmit = (e) => {
+  const handleSaveSubmit = async (e) => {
     e.preventDefault();
     if (!formTitle.trim()) {
       alert('문서 제목을 입력해 주세요.');
@@ -97,14 +97,19 @@ export default function DocumentsPage() {
       description: formDescription.trim()
     };
 
-    if (editingDoc) {
-      const updated = documents.map(d => d.id === editingDoc.id ? docData : d);
-      saveDocuments(updated);
-      alert('문서 정보가 수정되었습니다.');
-    } else {
-      const updated = [docData, ...documents];
-      saveDocuments(updated);
-      alert('새로운 문서가 업로드/등록되었습니다.');
+    try {
+      const method = editingDoc ? 'PUT' : 'POST';
+      const res = await fetch('/api/documents', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(docData)
+      });
+      if (res.ok) {
+        alert(editingDoc ? '문서 정보가 수정되었습니다.' : '새로운 문서가 업로드/등록되었습니다.');
+        fetchDocsFromAPI();
+      }
+    } catch (err) {
+      console.error('Doc save error', err);
     }
 
     setIsModalOpen(false);
@@ -112,19 +117,20 @@ export default function DocumentsPage() {
 
   // Simulated File Download
   const handleDownloadFile = (doc) => {
-    const updated = documents.map(d => {
-      if (d.id === doc.id) return { ...d, downloads: d.downloads + 1 };
-      return d;
-    });
-    saveDocuments(updated);
     alert(`[${doc.fileName}] 기술 문서 다운로드가 시작되었습니다.`);
   };
 
   // Delete Document
-  const handleDeleteDoc = (id) => {
+  const handleDeleteDoc = async (id) => {
     if (confirm('이 문서를 완전히 삭제하시겠습니까?')) {
-      const updated = documents.filter(d => d.id !== id);
-      saveDocuments(updated);
+      try {
+        const res = await fetch(`/api/documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchDocsFromAPI();
+        }
+      } catch (err) {
+        console.error('Doc delete error', err);
+      }
     }
   };
 

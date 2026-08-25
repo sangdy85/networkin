@@ -150,7 +150,7 @@ export default function NetworkPage() {
   };
 
   // Save Submit
-  const handleSaveSubmit = (e) => {
+  const handleSaveSubmit = async (e) => {
     e.preventDefault();
     if (!formTitle.trim() || !formSite.trim()) {
       alert('제목과 고객사명(사이트명)을 입력해 주세요.');
@@ -158,7 +158,7 @@ export default function NetworkPage() {
     }
 
     const itemData = {
-      id: editingItem ? editingItem.id : `NET-2026-${String(items.length + 10).padStart(3, '0')}`,
+      id: editingItem ? editingItem.id : `NET-2026-${String(Date.now()).slice(-4)}`,
       workType: formWorkType,
       customWorkType: formWorkType === '기타' ? formCustomWorkType.trim() : '',
       title: formTitle.trim(),
@@ -173,24 +173,35 @@ export default function NetworkPage() {
       status: '진행중'
     };
 
-    if (editingItem) {
-      const updated = items.map(i => i.id === editingItem.id ? itemData : i);
-      saveItems(updated);
-      alert('네트워크 작업 정보가 수정되었습니다.');
-    } else {
-      const updated = [itemData, ...items];
-      saveItems(updated);
-      alert('신규 네트워크 작업이 등록되었습니다.');
+    try {
+      const method = editingItem ? 'PUT' : 'POST';
+      const res = await fetch('/api/network', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemData)
+      });
+      if (res.ok) {
+        alert(editingItem ? '네트워크 작업 정보가 수정되었습니다.' : '신규 네트워크 작업이 등록되었습니다.');
+        fetchItemsFromAPI();
+      }
+    } catch (err) {
+      console.error('Save error', err);
     }
 
     setIsModalOpen(false);
   };
 
   // Delete
-  const handleDeleteItem = (id) => {
+  const handleDeleteItem = async (id) => {
     if (confirm('이 네트워크 작업 항목을 삭제하시겠습니까? (연동된 일정도 함께 삭제됩니다)')) {
-      const updated = items.filter(i => i.id !== id);
-      saveItems(updated);
+      try {
+        const res = await fetch(`/api/network?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchItemsFromAPI();
+        }
+      } catch (err) {
+        console.error('Delete error', err);
+      }
     }
   };
 

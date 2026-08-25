@@ -47,6 +47,36 @@ export async function POST(req) {
   }
 }
 
+// PUT /api/meeting - Update Meeting
+export async function PUT(req) {
+  try {
+    const body = await req.json();
+    const { id, primaryCategory, subCategory, title, site, date, time, attendees, content } = body;
+
+    const stmt = db.prepare(`
+      UPDATE meeting_items
+      SET primary_category = ?, sub_category = ?, title = ?, site = ?, date = ?, time = ?, attendees = ?, content = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(
+      primaryCategory || '회의',
+      subCategory || '고객사 미팅',
+      title,
+      site,
+      date,
+      time,
+      JSON.stringify(attendees || []),
+      content || '',
+      id
+    );
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 // DELETE /api/meeting - Delete Meeting
 export async function DELETE(req) {
   try {

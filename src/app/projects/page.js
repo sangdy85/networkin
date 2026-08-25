@@ -158,7 +158,7 @@ export default function ProjectsPage() {
   };
 
   // Save Project
-  const handleSaveSubmit = (e) => {
+  const handleSaveSubmit = async (e) => {
     e.preventDefault();
     if (!formName.trim() || !formClient.trim()) {
       alert('프로젝트명과 발주처를 입력해 주세요.');
@@ -188,24 +188,35 @@ export default function ProjectsPage() {
       memo: formMemo.trim()
     };
 
-    if (editingProject) {
-      const updated = projects.map(p => p.id === editingProject.id ? projData : p);
-      saveProjects(updated);
-      alert(`[${projData.name}] 시공 프로젝트 정보가 수정되었습니다.`);
-    } else {
-      const updated = [projData, ...projects];
-      saveProjects(updated);
-      alert(`[${projData.name}] 새로운 시공 프로젝트가 등록되었습니다.`);
+    try {
+      const method = editingProject ? 'PUT' : 'POST';
+      const res = await fetch('/api/projects', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(projData)
+      });
+      if (res.ok) {
+        alert(editingProject ? `[${projData.name}] 프로젝트 정보가 수정되었습니다.` : `[${projData.name}] 새로운 프로젝트가 등록되었습니다.`);
+        fetchProjectsFromAPI();
+      }
+    } catch (err) {
+      console.error('Project save error', err);
     }
 
     setIsModalOpen(false);
   };
 
   // Delete Project
-  const handleDeleteProject = (id) => {
+  const handleDeleteProject = async (id) => {
     if (confirm('이 프로젝트를 삭제하시겠습니까? (연동된 일정도 함께 삭제됩니다)')) {
-      const updated = projects.filter(p => p.id !== id);
-      saveProjects(updated);
+      try {
+        const res = await fetch(`/api/projects?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchProjectsFromAPI();
+        }
+      } catch (err) {
+        console.error('Project delete error', err);
+      }
     }
   };
 

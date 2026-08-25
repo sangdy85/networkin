@@ -140,21 +140,10 @@ export default function IPTPage() {
       });
       if (res.ok) {
         await fetchItemsFromAPI();
-        alert(editingItem ? 'IPT 작업 정보가 SQLite DB에 수정되었습니다.' : '신규 IPT 작업이 SQLite DB에 저장되었습니다.');
-        setIsModalOpen(false);
-        return;
+        alert(editingItem ? 'IPT 작업 정보가 수정되었습니다.' : '신규 IPT 작업이 등록되었습니다.');
       }
-    } catch (e) {}
-
-    // Fallback
-    if (editingItem) {
-      const updated = items.map(i => i.id === editingItem.id ? itemData : i);
-      setItems(updated);
-      localStorage.setItem('networkin_ipt_items', JSON.stringify(updated));
-    } else {
-      const updated = [itemData, ...items];
-      setItems(updated);
-      localStorage.setItem('networkin_ipt_items', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Save error', e);
     }
 
     setIsModalOpen(false);
@@ -162,18 +151,15 @@ export default function IPTPage() {
 
   // Delete
   const handleDeleteItem = async (id) => {
-    if (confirm('이 IPT 작업 항목을 삭제하시겠습니까? (DB 및 캘린더에서 삭제됩니다)')) {
+    if (confirm('이 IPT 작업 항목을 삭제하시겠습니까?')) {
       try {
-        const res = await fetch(`/api/ipt?id=${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/ipt?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
         if (res.ok) {
           await fetchItemsFromAPI();
-          return;
         }
-      } catch (e) {}
-
-      const updated = items.filter(i => i.id !== id);
-      setItems(updated);
-      localStorage.setItem('networkin_ipt_items', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Delete error', e);
+      }
     }
   };
 

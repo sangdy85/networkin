@@ -150,7 +150,7 @@ export default function MeetingPage() {
   };
 
   // Save Submit
-  const handleSaveSubmit = (e) => {
+  const handleSaveSubmit = async (e) => {
     e.preventDefault();
     if (!formTitle.trim() || !formSite.trim()) {
       alert('제목과 고객사명(사이트명)을 입력해 주세요.');
@@ -158,7 +158,7 @@ export default function MeetingPage() {
     }
 
     const itemData = {
-      id: editingItem ? editingItem.id : `MTG-2026-${String(items.length + 10).padStart(3, '0')}`,
+      id: editingItem ? editingItem.id : `MTG-2026-${String(Date.now()).slice(-4)}`,
       primaryCategory: formPrimaryCategory,
       subCategory: formSubCategory,
       title: formTitle.trim(),
@@ -170,24 +170,35 @@ export default function MeetingPage() {
       status: '예정'
     };
 
-    if (editingItem) {
-      const updated = items.map(i => i.id === editingItem.id ? itemData : i);
-      saveItems(updated);
-      alert('회의/컨설팅 정보가 수정되었으며, [일정관리]에 자동 반영되었습니다.');
-    } else {
-      const updated = [itemData, ...items];
-      saveItems(updated);
-      alert('신규 회의/컨설팅이 등록되었으며, [일정관리] 캘린더에 자동 연동되었습니다!');
+    try {
+      const method = editingItem ? 'PUT' : 'POST';
+      const res = await fetch('/api/meeting', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemData)
+      });
+      if (res.ok) {
+        alert(editingItem ? '회의/컨설팅 정보가 수정되었습니다.' : '신규 회의/컨설팅이 등록되었습니다.');
+        fetchItemsFromAPI();
+      }
+    } catch (err) {
+      console.error('Meeting save error', err);
     }
 
     setIsModalOpen(false);
   };
 
   // Delete
-  const handleDeleteItem = (id) => {
+  const handleDeleteItem = async (id) => {
     if (confirm('이 회의/컨설팅 항목을 삭제하시겠습니까? (연동된 일정도 함께 삭제됩니다)')) {
-      const updated = items.filter(i => i.id !== id);
-      saveItems(updated);
+      try {
+        const res = await fetch(`/api/meeting?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchItemsFromAPI();
+        }
+      } catch (err) {
+        console.error('Meeting delete error', err);
+      }
     }
   };
 
