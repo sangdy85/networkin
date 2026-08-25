@@ -33,11 +33,11 @@ export default function AuthModals() {
   };
 
   // Handle Login Modal Submit
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setLoginError('');
 
-    const res = login(loginId, loginPw);
+    const res = await login(loginId, loginPw);
     if (!res.success) {
       setLoginError(res.message);
     } else {

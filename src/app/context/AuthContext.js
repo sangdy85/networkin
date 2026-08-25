@@ -96,19 +96,27 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Explicit Login
-  const login = (userId, password) => {
-    const target = users.find((u) => u.id.toLowerCase() === userId.toLowerCase());
-    if (!target) {
-      return { success: false, message: '존재하지 않는 아이디입니다.' };
-    }
-    if (target.password !== password) {
-      return { success: false, message: '비밀번호가 일치하지 않습니다.' };
-    }
+  // Direct Server DB Authentication Login
+  const login = async (userId, password) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, password })
+      });
 
-    saveCurrentUserState(target);
-    setShowLoginModal(false);
-    return { success: true, user: target };
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, message: data.error || '로그인 실패' };
+      }
+
+      saveCurrentUserState(data.user);
+      setShowLoginModal(false);
+      fetchUsersFromAPI();
+      return { success: true, user: data.user };
+    } catch (e) {
+      return { success: false, message: `로그인 통신 오류: ${e.message}` };
+    }
   };
 
   // Explicit Logout
