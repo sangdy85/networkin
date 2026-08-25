@@ -28,10 +28,43 @@ export default function AdminPage() {
   });
 
   const [editingUser, setEditingUser] = useState(null);
+  const [editingUserModal, setEditingUserModal] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
   const isMaster = currentUser?.id === 'netadmin' || currentUser?.role === '마스터 관리자';
+
+  const handleOpenEditUser = (user) => {
+    setEditingUserModal(user);
+    setEditFormData({
+      name: user.name || '',
+      role: user.role || '일반',
+      password: user.password || '1234',
+      department: user.department || '',
+      rank: user.rank || '',
+      duty: user.duty || '',
+      hireDate: user.hireDate || '',
+      task: user.task || '',
+      phone: user.phone || '',
+      mobile: user.mobile || '',
+      fax: user.fax || '',
+      address: user.address || ''
+    });
+  };
+
+  const handleEditUserSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingUserModal) return;
+
+    const res = await updateAccountInfo(editingUserModal.id, editFormData);
+    if (res.success) {
+      alert(`[${editingUserModal.id}] 계정 정보가 성공적으로 수정되었습니다!`);
+      setEditingUserModal(null);
+    } else {
+      alert(`수정 실패: ${res.message || '수정 실패'}`);
+    }
+  };
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -365,7 +398,7 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {(users || []).map((u) => (
                 <tr key={u.id}>
                   <td style={{ fontWeight: 700, color: u.id === 'netadmin' ? 'var(--color-accent)' : '#fff' }}>
                     {u.id === 'netadmin' && '👑 '}
