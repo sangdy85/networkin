@@ -37,7 +37,7 @@ export default function AdminPage() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleCreateSubmit = (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -50,7 +50,7 @@ export default function AdminPage() {
     const fullPhone = formData.phoneMid ? `${formData.phoneArea}-${formData.phoneMid}-${formData.phoneEnd}` : '';
     const fullFax = formData.faxMid ? `${formData.faxArea}-${formData.faxMid}-${formData.faxEnd}` : '';
 
-    const res = createAccount({
+    const res = await createAccount({
       ...formData,
       id: formData.id.trim(),
       name: formData.name.trim() || formData.id.trim(),

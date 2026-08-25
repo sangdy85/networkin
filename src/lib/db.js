@@ -120,8 +120,43 @@ db.exec(`
     has_attachment INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT '일반',
+    password TEXT NOT NULL DEFAULT '1234',
+    is_first_login INTEGER DEFAULT 0,
+    department TEXT,
+    rank TEXT,
+    duty TEXT,
+    hire_date TEXT,
+    task TEXT,
+    phone TEXT,
+    mobile TEXT,
+    fax TEXT,
+    address TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
-// DB Schema is initialized cleanly without initial dummy seed data.
+// Initialize default admin accounts if users table is empty
+const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+if (userCount === 0) {
+  const insertUser = db.prepare(`
+    INSERT INTO users (id, name, role, password, is_first_login, department, rank, duty, hire_date, task, phone, mobile, fax, address)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  insertUser.run(
+    'netadmin', '마스터 관리자', '마스터 관리자', '1234', 0,
+    '네트워크사업부', '총괄이사', '마스터 총괄', '2020-01-01',
+    '시스템 총괄 및 인프라 보안', '02-6207-8000', '010-1234-5678', '02-6207-8001', '서울특별시 중구 남대문로 84'
+  );
+  insertUser.run(
+    'leekw', '이강욱 팀장', '관리자', '1234', 0,
+    '네트워크사업부', '팀장', '시공총괄', '2022-03-15',
+    '인프라 시공 및 프로젝트 관리', '041-550-1000', '010-9876-5432', '041-550-1001', '충청남도 천안시 서북구 벤처로 10'
+  );
+}
 
 export default db;

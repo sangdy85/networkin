@@ -61,28 +61,31 @@ export function AuthProvider({ children }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Hydration-safe initial loading
-  useEffect(() => {
-    const savedUsers = localStorage.getItem('einstec_users');
-    const savedUser = localStorage.getItem('einstec_current_user');
-    
-    if (savedUsers) {
-      try { setUsers(JSON.parse(savedUsers)); } catch (e) {}
-    } else {
-      localStorage.setItem('einstec_users', JSON.stringify(INITIAL_USERS));
+  // Fetch users from server SQLite DB
+  const fetchUsersFromAPI = async () => {
+    try {
+      const res = await fetch('/api/auth/users');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setUsers(data);
+        }
+      }
+    } catch (e) {
+      console.error('Fetch users error', e);
     }
+  };
 
+  useEffect(() => {
+    fetchUsersFromAPI();
+
+    const savedUser = localStorage.getItem('einstec_current_user');
     if (savedUser) {
       try { setCurrentUser(JSON.parse(savedUser)); } catch (e) {}
     }
     
     setIsInitialized(true);
   }, []);
-
-  const saveUsersState = (newUsers) => {
-    setUsers(newUsers);
-    localStorage.setItem('einstec_users', JSON.stringify(newUsers));
-  };
 
   const saveCurrentUserState = (user) => {
     setCurrentUser(user);
@@ -113,65 +116,81 @@ export function AuthProvider({ children }) {
     saveCurrentUserState(null);
   };
 
-  // Admin Account Creation (With full Department & Contact Details)
-  const createAccount = (accountData) => {
-    const { id, name, role, department, rank, duty, hireDate, task, phone, mobile, fax, address } = accountData;
+  // Admin Account Creation (Server DB Sync)
+  const createAccount = async (accountData) => {
+    const { id } = accountData;
 
     if (users.some((u) => u.id.toLowerCase() === id.toLowerCase())) {
       return { success: false, message: '이미 존재하는 아이디입니다.' };
     }
 
-    const newUser = {
-      id: id.trim(),
-      name: name.trim() || id.trim(),
-      role: role || '일반',
-      password: '1234', // Initial default password
-      isFirstLogin: true,
-      department: department || '네트워크사업부',
-      rank: rank || '사원',
-      duty: duty || '팀원',
-      hireDate: hireDate || new Date().toISOString().split('T')[0],
-      task: task || '인프라 관리',
-      phone: phone || '',
-      mobile: mobile || '',
-      fax: fax || '',
-      address: address || ''
-    };
+    try {
+      const res = await fetch('/api/auth/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(accountData)
+      });
 
-    const updated = [...users, newUser];
-    saveUsersState(updated);
-    return { success: true, user: newUser };
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, message: data.error || '계정 생성 실패' };
+      }
+
+      await fetchUsersFromAPI();
+      return { success: true, id };
+    } catch (e) {
+      return { success: false, message: `계정 생성 오류: ${e.message}` };
+    }
   };
 
-  // Update Account Info
-  const updateAccountInfo = (userId, updatedFields) => {
-    const updatedUsers = users.map((u) => u.id === userId ? { ...u, ...updatedFields } : u);
-    saveUsersState(updatedUsers);
-    if (currentUser?.id === userId) {
-      saveCurrentUserState({ ...currentUser, ...updatedFields });
+  // Update Account Info (Server DB Sync)
+  const updateAccountInfo = async (userId, updatedFields) => {
+    try {
+      const res = await fetch('/api/auth/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: userId, ...updatedFields })
+      });
+
+      if (res.ok) {
+        await fetchUsersFromAPI();
+        if (currentUser?.id.toLowerCase() === userId.toLowerCase()) {
+          saveCurrentUserState({ ...currentUser, ...updatedFields });
+        }
+        return { success: true };
+      }
+      return { success: false, message: '계정 정보 수정 실패' };
+    } catch (e) {
+      return { success: false, message: `오류: ${e.message}` };
     }
-    return { success: true };
   };
 
   // Change User Role (관리자 / 일반)
-  const changeUserRole = (userId, newRole) => {
-    updateAccountInfo(userId, { role: newRole });
+  const changeUserRole = async (userId, newRole) => {
+    return await updateAccountInfo(userId, { role: newRole });
   };
 
-  // Delete User Account
-  const deleteUser = (userId) => {
+  // Delete User Account (Server DB Sync)
+  const deleteUser = async (userId) => {
     if (userId === 'netadmin') {
       return { success: false, message: '마스터 계정(netadmin)은 삭제할 수 없습니다.' };
     }
-    const updated = users.filter((u) => u.id !== userId);
-    saveUsersState(updated);
-    return { success: true };
+    try {
+      const res = await fetch(`/api/auth/users?id=${encodeURIComponent(userId)}`, { method: 'DELETE' });
+      if (res.ok) {
+        await fetchUsersFromAPI();
+        return { success: true };
+      }
+      return { success: false, message: '계정 삭제 실패' };
+    } catch (e) {
+      return { success: false, message: `오류: ${e.message}` };
+    }
   };
 
   // Mandatory First-Time Password Change Handler
-  const changePassword = (newPassword) => {
+  const changePassword = async (newPassword) => {
     if (!currentUser) return { success: false };
-    return updateAccountInfo(currentUser.id, { password: newPassword, isFirstLogin: false });
+    return await updateAccountInfo(currentUser.id, { password: newPassword, isFirstLogin: false });
   };
 
   return (
