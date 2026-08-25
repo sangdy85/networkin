@@ -405,19 +405,28 @@ export default function AdminPage() {
                     )}
                   </td>
                   <td>
-                    {u.id !== 'netadmin' && (
+                    <div style={{ display: 'flex', gap: '0.3rem' }}>
                       <button
-                        onClick={() => {
-                          if (confirm(`계정 [${u.id}]를 삭제하시겠습니까?`)) {
-                            deleteUser(u.id);
-                          }
-                        }}
+                        onClick={() => handleOpenEditUser(u)}
                         className="btn btn-secondary"
-                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', color: '#E63946' }}
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', color: 'var(--color-accent)', borderColor: 'var(--color-accent)' }}
                       >
-                        삭제
+                        ✏️ 수정
                       </button>
-                    )}
+                      {u.id !== 'netadmin' && (
+                        <button
+                          onClick={() => {
+                            if (confirm(`계정 [${u.id}]를 삭제하시겠습니까?`)) {
+                              deleteUser(u.id);
+                            }
+                          }}
+                          className="btn btn-secondary"
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', color: '#E63946', borderColor: '#E63946' }}
+                        >
+                          삭제
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -425,6 +434,90 @@ export default function AdminPage() {
           </table>
         </div>
       </div>
+
+      {/* ✏️ Edit User Profile Modal */}
+      {editingUserModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(5px)',
+          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+        }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '640px', background: 'var(--bg-card)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div className="panel-header">
+              <h2 className="panel-title">✏️ 사원 회원정보 수정 [{editingUserModal.id}]</h2>
+              <button onClick={() => setEditingUserModal(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleEditUserSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>아이디 (수정불가)</label>
+                  <input type="text" value={editingUserModal.id} disabled style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', color: '#aaa' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>성명 *</label>
+                  <input type="text" value={editFormData.name || ''} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.8rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>비밀번호</label>
+                  <input type="password" value={editFormData.password || ''} onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })} placeholder="변경할 비밀번호" style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>권한</label>
+                  <select value={editFormData.role || '일반'} onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: '#0B132B', border: '1px solid var(--border-color)', color: 'white' }}>
+                    <option value="일반">일반</option>
+                    <option value="관리자">관리자</option>
+                    <option value="마스터 관리자">마스터 관리자</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>부서</label>
+                  <input type="text" value={editFormData.department || ''} onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.8rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>직급</label>
+                  <input type="text" value={editFormData.rank || ''} onChange={(e) => setEditFormData({ ...editFormData, rank: e.target.value })} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>직책</label>
+                  <input type="text" value={editFormData.duty || ''} onChange={(e) => setEditFormData({ ...editFormData, duty: e.target.value })} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>휴대전화</label>
+                  <input type="text" value={editFormData.mobile || ''} onChange={(e) => setEditFormData({ ...editFormData, mobile: e.target.value })} placeholder="010-0000-0000" style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>회사전화</label>
+                  <input type="text" value={editFormData.phone || ''} onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>담당업무</label>
+                  <input type="text" value={editFormData.task || ''} onChange={(e) => setEditFormData({ ...editFormData, task: e.target.value })} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>주소</label>
+                <input type="text" value={editFormData.address || ''} onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })} style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }} />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.8rem', marginTop: '1rem' }}>
+                <button type="button" onClick={() => setEditingUserModal(null)} className="btn btn-secondary">취소</button>
+                <button type="submit" className="btn btn-accent">💾 정보 수정 저장</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
