@@ -171,7 +171,7 @@ export default function AdminPage() {
                         type="text"
                         value={formData.department}
                         onChange={(e) => handleInputChange('department', e.target.value)}
-                        placeholder="예: SBI저축은행 파견팀 / 네트워크사업부"
+                        placeholder="부서명을 입력해 주세요"
                         style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                       />
                     </td>

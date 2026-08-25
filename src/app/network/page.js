@@ -316,7 +316,7 @@ export default function NetworkPage() {
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="예: 천안 1공장 2구역 UTP 배선 포설 및 기계실 랙 정돈"
+                  placeholder="작업 제목을 입력해 주세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>
@@ -327,7 +327,7 @@ export default function NetworkPage() {
                   type="text"
                   value={formSite}
                   onChange={(e) => setFormSite(e.target.value)}
-                  placeholder="예: 천안 1공장 현장 / 아산 B동 전산실"
+                  placeholder="고객사명 / 사이트명을 입력하세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>

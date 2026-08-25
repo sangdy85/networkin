@@ -287,7 +287,7 @@ export default function MaintenancePage() {
                   type="text"
                   value={formSite}
                   onChange={(e) => setFormSite(e.target.value)}
-                  placeholder="예: 대성물류 천안 센터 / SBI저축은행 본점 11층"
+                  placeholder="사이트명 / 고객사명을 입력하세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>
@@ -298,7 +298,7 @@ export default function MaintenancePage() {
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="예: IPT 교환기 포트 손실 및 통화 잡음 발생"
+                  placeholder="장애 / 출동 접수 제목을 입력하세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>

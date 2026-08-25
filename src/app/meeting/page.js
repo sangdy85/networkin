@@ -311,7 +311,7 @@ export default function MeetingPage() {
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="예: 대전 R&D 센터 IPCC 콜센터 50석 확대 구축 기술 제안 미팅"
+                  placeholder="회의 / 컨설팅 제목을 입력해 주세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>
@@ -322,7 +322,7 @@ export default function MeetingPage() {
                   type="text"
                   value={formSite}
                   onChange={(e) => setFormSite(e.target.value)}
-                  placeholder="예: 한국기술연구원 대전센터 / 본사 대회의실"
+                  placeholder="장소 / 고객사명을 입력해 주세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>

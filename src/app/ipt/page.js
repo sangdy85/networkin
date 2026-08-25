@@ -292,7 +292,7 @@ export default function IPTPage() {
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="예: (주)대성물류 IPT 교환기 연동 감쇄 및 포트 전면 수리"
+                  placeholder="작업 제목을 입력해 주세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>
@@ -303,7 +303,7 @@ export default function IPTPage() {
                   type="text"
                   value={formSite}
                   onChange={(e) => setFormSite(e.target.value)}
-                  placeholder="예: 대성물류 천안센터"
+                  placeholder="고객사명 / 사이트명을 입력하세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>

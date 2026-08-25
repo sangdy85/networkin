@@ -317,7 +317,7 @@ export default function ProjectsPage() {
                   type="text"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="예: 천안 A공장 생산라인 2구역 UTP/광배선 구축"
+                  placeholder="시공 프로젝트명을 입력해 주세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>
@@ -329,7 +329,7 @@ export default function ProjectsPage() {
                     type="text"
                     value={formClient}
                     onChange={(e) => setFormClient(e.target.value)}
-                    placeholder="예: (주)천안정밀"
+                    placeholder="발주처 / 고객사명을 입력해 주세요"
                     style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                   />
                 </div>
