@@ -8,8 +8,11 @@
 /build
 
 # Database files
-/data/*.db-journal
-/data/*.db-wal
+/data/*
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Production Environment Variables & Logs
 .env*.local
