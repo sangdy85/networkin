@@ -16,7 +16,7 @@ function fetchPop3RawEmails({ host, port, user, pass }) {
     let buffer = '';
     let step = 'GREETING';
     const messages = [];
-    let expectedCount = 0;
+    let maxMsgIdx = 0;
     let currentMsgIdx = 1;
     let readingMsg = false;
 
@@ -57,7 +57,7 @@ function fetchPop3RawEmails({ host, port, user, pass }) {
             readingMsg = false;
 
             currentMsgIdx++;
-            if (currentMsgIdx <= expectedCount) {
+            if (currentMsgIdx <= maxMsgIdx) {
               fetchNextMsg();
             } else {
               send('QUIT');
@@ -90,13 +90,13 @@ function fetchPop3RawEmails({ host, port, user, pass }) {
           } else if (step === 'STAT') {
             const parts = line.split(' ');
             const totalMsgs = parseInt(parts[1] || '0', 10);
-            expectedCount = Math.min(totalMsgs, 20); // Fetch latest up to 20 emails
-            if (expectedCount === 0) {
+            if (totalMsgs === 0) {
               send('QUIT');
               socket.end();
             } else {
               step = 'RETR';
-              currentMsgIdx = Math.max(1, totalMsgs - 19); // fetch latest 20
+              maxMsgIdx = totalMsgs;
+              currentMsgIdx = Math.max(1, totalMsgs - 49); // fetch up to 50 latest emails
               fetchNextMsg();
             }
           } else if (step === 'RETR') {
@@ -133,7 +133,8 @@ export async function POST(req) {
     for (let i = 0; i < rawMsgs.length; i++) {
       try {
         const parsed = await simpleParser(rawMsgs[i]);
-        const mailId = `EXT-${Date.now()}-${i}`;
+        const uniqueSeed = parsed.messageId || `${parsed.subject}_${parsed.date ? new Date(parsed.date).getTime() : i}`;
+        const mailId = `EXT-${user}-${uniqueSeed.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
         const senderName = parsed.from?.text || parsed.from?.value?.[0]?.name || user;
         const senderEmail = parsed.from?.value?.[0]?.address || user;
         const subject = parsed.subject || '(제목 없음)';
