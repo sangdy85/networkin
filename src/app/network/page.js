@@ -3,38 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const INITIAL_NETWORK_ITEMS = [
-  {
-    id: 'NET-2026-001',
-    workType: '작업',
-    customWorkType: '',
-    title: '천안 1공장 2구역 UTP 배선 120라인 포설 및 기계실 랙 정돈',
-    startDate: '2026-08-19',
-    startTime: '09:00',
-    endDate: '2026-08-19',
-    endTime: '18:00',
-    includeWeekends: true,
-    site: '천안 1공장 현장',
-    workers: ['김철수 과장', '박민우 대리'],
-    content: '생산라인 2구역 천장 트레이 배선 포설 및 Cisco 2960 PoE 스위치 패치패널 케이블링 완료.',
-    status: '진행중'
-  },
-  {
-    id: 'NET-2026-002',
-    workType: '정기점검',
-    customWorkType: '',
-    title: '아산 B동 전산실 백본-스위치 간 광케이블 월간 정기 점검',
-    startDate: '2026-08-19',
-    startTime: '09:00',
-    endDate: '2026-08-19',
-    endTime: '18:00',
-    includeWeekends: false,
-    site: '아산 B동 전산실',
-    workers: ['박민우 대리'],
-    content: 'OTDR 광손실 측정 측정결과 -22dBm 정상 수치 확인 완료.',
-    status: '완료'
-  }
-];
+const INITIAL_NETWORK_ITEMS = [];
 
 const WORK_TYPES = ['작업', '정기점검', '유지보수', '장애처리', '구축', '기타'];
 const COMPANY_WORKERS = ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
@@ -65,8 +34,24 @@ export default function NetworkPage() {
   const [formCustomWorker, setFormCustomWorker] = useState('');
   const [formContent, setFormContent] = useState('');
 
-  // Load from localStorage & sync to schedule
+  // Fetch from Real Backend SQLite API `/api/network`
   useEffect(() => {
+    fetchItemsFromAPI();
+  }, []);
+
+  const fetchItemsFromAPI = async () => {
+    try {
+      const res = await fetch('/api/network');
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data || []);
+        syncAllToSchedule(data || []);
+        return;
+      }
+    } catch (e) {
+      console.warn('Network API fallback');
+    }
+
     const saved = localStorage.getItem('networkin_network_items');
     if (saved) {
       try {
@@ -75,9 +60,10 @@ export default function NetworkPage() {
         syncAllToSchedule(parsed);
       } catch (e) {}
     } else {
-      syncAllToSchedule(INITIAL_NETWORK_ITEMS);
+      setItems([]);
+      syncAllToSchedule([]);
     }
-  }, []);
+  };
 
   const saveItems = (newItems) => {
     setItems(newItems);

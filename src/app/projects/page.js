@@ -3,44 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const INITIAL_PROJECTS = [
-  {
-    id: 1,
-    name: '천안 A공장 생산라인 2구역 UTP/광배선 구축',
-    client: '(주)천안정밀',
-    type: '인프라구축',
-    category: '공장자동화',
-    pm: '김철수 과장',
-    workers: ['김철수 과장', '박민우 대리'],
-    period: '2026.08.01 ~ 2026.08.28',
-    startDate: '2026-08-01',
-    endDate: '2026-08-28',
-    includeWeekends: true,
-    progress: 85,
-    status: '시공중',
-    budget: '4,500만원',
-    badgeClass: 'badge-active',
-    memo: '천안 1공장 2구역 UTP 120라인 포설 및 광케이블 접속 완료. 랙정리 진행 중.'
-  },
-  {
-    id: 2,
-    name: '(주)한빛 스마트 오피스 IPT 교환기 및 IP폰 구축',
-    client: '(주)한빛인베스트',
-    type: 'IPT구축',
-    category: 'UC/IPT',
-    pm: '박민우 대리',
-    workers: ['박민우 대리'],
-    period: '2026.08.10 ~ 2026.09.05',
-    startDate: '2026-08-10',
-    endDate: '2026-09-05',
-    includeWeekends: false,
-    progress: 45,
-    status: '시공중',
-    badgeClass: 'badge-active',
-    budget: '3,200만원',
-    memo: 'IP-PBX 교환기 랙 입고 완료. 층별 IP폰 150대 내선 번호 세팅 중.'
-  }
-];
+const INITIAL_PROJECTS = [];
 
 const COMPANY_WORKERS = ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
 
@@ -71,8 +34,24 @@ export default function ProjectsPage() {
   const [formBudget, setFormBudget] = useState('3,000만원');
   const [formMemo, setFormMemo] = useState('');
 
-  // Load from localStorage & sync all projects on startup
+  // Fetch from Real Backend SQLite API `/api/projects`
   useEffect(() => {
+    fetchProjectsFromAPI();
+  }, []);
+
+  const fetchProjectsFromAPI = async () => {
+    try {
+      const res = await fetch('/api/projects');
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(data || []);
+        syncAllProjectsToSchedule(data || []);
+        return;
+      }
+    } catch (e) {
+      console.warn('Projects API fallback');
+    }
+
     const saved = localStorage.getItem('networkin_projects');
     if (saved) {
       try {
@@ -81,9 +60,10 @@ export default function ProjectsPage() {
         syncAllProjectsToSchedule(parsed);
       } catch (e) {}
     } else {
-      syncAllProjectsToSchedule(INITIAL_PROJECTS);
+      setProjects([]);
+      syncAllProjectsToSchedule([]);
     }
-  }, []);
+  };
 
   // Sync All Projects to Schedule
   const syncAllProjectsToSchedule = (projList) => {

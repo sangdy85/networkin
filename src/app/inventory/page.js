@@ -2,73 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-const INITIAL_INVENTORY = [
-  {
-    id: 1,
-    code: 'INV-CAB-001',
-    name: 'LS 전선 UTP Cat.6 케이블 (305m Box)',
-    category: '케이블/배선',
-    stock: 45,
-    minStock: 10,
-    unit: 'Box',
-    location: '본사 자재실 A-1',
-    price: '145,000원',
-    status: '적정',
-    badgeClass: 'badge-active'
-  },
-  {
-    id: 2,
-    code: 'INV-OPT-002',
-    name: 'LS 8코어 싱글모드 광케이블 (Outdoor 1km Spool)',
-    category: '케이블/배선',
-    stock: 3,
-    minStock: 5,
-    unit: 'Spool',
-    location: '본사 자재실 A-2',
-    price: '850,000원',
-    status: '재입고필요',
-    badgeClass: 'badge-urgent'
-  },
-  {
-    id: 3,
-    code: 'INV-SW-010',
-    name: 'Cisco Catalyst C9300-48P PoE+ 스위치',
-    category: '네트워크 스위치',
-    stock: 8,
-    minStock: 3,
-    unit: '대',
-    location: '본사 서버실 B-1',
-    price: '4,200,000원',
-    status: '적정',
-    badgeClass: 'badge-active'
-  },
-  {
-    id: 4,
-    code: 'INV-IPT-020',
-    name: 'Cisco CP-7821 UC IP Phone 단말기',
-    category: 'IPT/IP전화기',
-    stock: 120,
-    minStock: 30,
-    unit: '대',
-    location: '본사 자재실 C-3',
-    price: '180,000원',
-    status: '적정',
-    badgeClass: 'badge-active'
-  },
-  {
-    id: 5,
-    code: 'INV-EQ-005',
-    name: '후지쿠라 광케이블 코어 융착접합기 (Fujikura 88S)',
-    category: '시공/측정 장비',
-    stock: 4,
-    minStock: 2,
-    unit: '세트',
-    location: '장비보관함 E-1',
-    price: '9,500,000원',
-    status: '적정',
-    badgeClass: 'badge-active'
-  }
-];
+const INITIAL_INVENTORY = [];
 
 export default function InventoryPage() {
   const [inventory, setInventory] = useState(INITIAL_INVENTORY);

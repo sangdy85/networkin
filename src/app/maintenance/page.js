@@ -3,53 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const INITIAL_TICKETS = [
-  {
-    id: 'TCK-2026-081',
-    site: '대성물류 천안 물류센터',
-    title: 'IPT 전용 스위치 2번 포트 감쇄 및 IP Phone 통화 끊김 발생',
-    issue: 'IPT 교환기 연동 라인 2번 포트의 CRC 에러 급증으로 인한 콜센터 5대 단말 통화 끊김 및 잡음 발생.',
-    urgency: '긴급',
-    category: 'IPT 장애',
-    status: '이동중',
-    engineer: '최현우 과장',
-    workers: ['최현우 과장', '김철수 과장'],
-    time: '2026-08-19 10:15',
-    date: '2026-08-19',
-    badgeClass: 'badge-urgent',
-    resolutionNote: ''
-  },
-  {
-    id: 'TCK-2026-080',
-    site: '아산 B동 전산실',
-    title: '광케이블 융착 부위 케이블 손실률 정기 모니터링 경보',
-    issue: '아산 B동 전산실 백본-스위치 간 optical power 손실률 -24dBm 경보 감지. OTDR 재측정 필요.',
-    urgency: '보통',
-    category: '네트워크 유지보수',
-    status: '접수',
-    engineer: '박민우 대리',
-    workers: ['박민우 대리'],
-    time: '2026-08-19 09:30',
-    date: '2026-08-19',
-    badgeClass: 'badge-active',
-    resolutionNote: ''
-  },
-  {
-    id: 'TCK-2026-079',
-    site: 'SBI저축은행 본점 11층',
-    title: '서버 랙 전원 IP PDU 소켓 수리 및 장비 재부팅 지원',
-    issue: '11층 전산랙 PDU B분전반 소켓 접촉 불량. 소켓 교체 작업 및 스위치 장비 정상 동작 확인.',
-    urgency: '낮음',
-    category: 'H/W 및 주변기기 수리',
-    status: '처리완료',
-    engineer: '김철수 과장',
-    workers: ['김철수 과장'],
-    time: '2026-08-18 16:40',
-    date: '2026-08-18',
-    badgeClass: 'badge-complete',
-    resolutionNote: 'PDU 모듈 교체 및 전원 전압 정상치(220V) 확인 후 서비스 복구 완료.'
-  }
-];
+const INITIAL_TICKETS = [];
 
 const COMPANY_WORKERS = ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
 

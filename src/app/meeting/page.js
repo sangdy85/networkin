@@ -8,32 +8,7 @@ const SUB_CATEGORIES = {
   '컨설팅': ['견적 사전 컨설팅', '기술 제안 미팅', '설계 컨설팅']
 };
 
-const INITIAL_MEETINGS = [
-  {
-    id: 'MTG-2026-001',
-    primaryCategory: '컨설팅',
-    subCategory: '기술 제안 미팅',
-    title: '대전 R&D 센터 IPCC 콜센터 50석 확대 구축 기술 제안 미팅',
-    date: '2026-08-21',
-    time: '14:00 - 16:00',
-    site: '한국기술연구원 대전센터',
-    attendees: ['이강욱 팀장', '최현우 과장'],
-    content: 'UC 커뮤니케이션 IP-PBX 연동 및 백본 스위치 이중화 구성 제안 발표.',
-    status: '예정'
-  },
-  {
-    id: 'MTG-2026-002',
-    primaryCategory: '회의',
-    subCategory: '사내 회의',
-    title: '2026년 3분기 현장 통신배선 시공 일정 점검 회의',
-    date: '2026-08-20',
-    time: '10:00 - 11:30',
-    site: '본사 2층 대회의실',
-    attendees: ['김철수 과장', '박민우 대리', '이강욱 팀장'],
-    content: '천안 1공장 2구역 포설 자재 수급 상황 공유 및 광케이블 융착 장비 수점검.',
-    status: '완료'
-  }
-];
+const INITIAL_MEETINGS = [];
 
 const COMPANY_WORKERS = ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
 
@@ -60,8 +35,24 @@ export default function MeetingPage() {
   const [formCustomAttendee, setFormCustomAttendee] = useState('');
   const [formContent, setFormContent] = useState('');
 
-  // Load from localStorage & sync to schedule
+  // Fetch from Real Backend SQLite API `/api/meeting`
   useEffect(() => {
+    fetchItemsFromAPI();
+  }, []);
+
+  const fetchItemsFromAPI = async () => {
+    try {
+      const res = await fetch('/api/meeting');
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data || []);
+        syncAllToSchedule(data || []);
+        return;
+      }
+    } catch (e) {
+      console.warn('Meeting API connection fallback');
+    }
+
     const saved = localStorage.getItem('networkin_meeting_items');
     if (saved) {
       try {
@@ -70,9 +61,10 @@ export default function MeetingPage() {
         syncAllToSchedule(parsed);
       } catch (e) {}
     } else {
-      syncAllToSchedule(INITIAL_MEETINGS);
+      setItems([]);
+      syncAllToSchedule([]);
     }
-  }, []);
+  };
 
   const saveItems = (newItems) => {
     setItems(newItems);

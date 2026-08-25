@@ -3,23 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const INITIAL_IPT_ITEMS = [
-  {
-    id: 'IPT-2026-001',
-    workType: '장애처리',
-    customWorkType: '',
-    title: '(주)대성물류 IPT 교환기 연동 감쇄 및 포트 전면 수리',
-    startDate: '2026-08-19',
-    startTime: '09:00',
-    endDate: '2026-08-19',
-    endTime: '18:00',
-    includeWeekends: true,
-    site: '대성물류 천안센터',
-    workers: ['최현우 과장', '김철수 과장'],
-    content: 'IP-PBX 교환기 2번 트렁크 포트 CRC 오류 수리 및 콜센터 IP Phone 5대 단말 재설정 완료.',
-    status: '완료'
-  }
-];
+const INITIAL_IPT_ITEMS = [];
 
 const WORK_TYPES = ['작업', '정기점검', '유지보수', '장애처리', '구축', '기타'];
 const COMPANY_WORKERS = ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
@@ -60,10 +44,8 @@ export default function IPTPage() {
       const res = await fetch('/api/ipt');
       if (res.ok) {
         const data = await res.json();
-        if (data && data.length > 0) {
-          setItems(data);
-          return;
-        }
+        setItems(data || []);
+        return;
       }
     } catch (e) {
       console.warn('API connection fallback to localStorage');

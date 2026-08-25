@@ -58,10 +58,8 @@ export default function SchedulePage() {
       const res = await fetch('/api/schedule');
       if (res.ok) {
         const data = await res.json();
-        if (data && data.length > 0) {
-          setEvents(data);
-          return;
-        }
+        setEvents(data || []);
+        return;
       }
     } catch (e) {
       console.warn('Schedule API connection fallback');

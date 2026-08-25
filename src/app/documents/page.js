@@ -3,86 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
-const INITIAL_DOCUMENTS = [
-  {
-    id: 1,
-    code: 'DOC-2026-DWG-001',
-    title: '천안 A공장 생산라인 2구역 통합 배선 도면 (DWG)',
-    category: '도면(DWG)',
-    author: '김철수 과장',
-    version: 'v2.1',
-    date: '2026-08-18',
-    fileSize: '18.4 MB',
-    fileName: '천안A공장_배선도면_v2.1.dwg',
-    downloads: 42,
-    description: '천안 A공장 생산라인 2구역 UTP 120라인 및 광케이블 포설 기계실 계통 도면'
-  },
-  {
-    id: 2,
-    code: 'DOC-2026-PROP-012',
-    title: '(주)한빛 스마트 오피스 IPT & IPCC 구축 제안서 (PDF)',
-    category: '시공제안서',
-    author: '박민우 대리',
-    version: 'v1.0',
-    date: '2026-08-12',
-    fileSize: '5.2 MB',
-    fileName: '한빛스마트오피스_IPT제안서.pdf',
-    downloads: 18,
-    description: 'UC 커뮤니케이션 및 150석 IP-PBX 교환기 연동 시스템 표준 제안서'
-  },
-  {
-    id: 3,
-    code: 'DOC-2026-TECH-NET-01',
-    title: 'Cisco Catalyst 백본 스위치 VSS 이중화 및 STP 기술 매뉴얼 (PDF)',
-    category: '기술문서 (네트워크)',
-    author: '이강욱 팀장',
-    version: 'v3.2',
-    date: '2026-08-14',
-    fileSize: '8.7 MB',
-    fileName: 'Cisco_스위치_VSS이중화_기술매뉴얼.pdf',
-    downloads: 65,
-    description: '백본 스위치 이중화 가상화 VSS 구성 및 포트채널 링크 트래픽 장애 절체 기술 표준 가이드'
-  },
-  {
-    id: 4,
-    code: 'DOC-2026-TECH-IPT-02',
-    title: 'Cisco IP-PBX 연동 SIP 게이트웨이 및 IP폰 내선 세팅 가이드 (PDF)',
-    category: '기술문서 (IPT)',
-    author: '최현우 과장',
-    version: 'v2.0',
-    date: '2026-08-16',
-    fileSize: '6.4 MB',
-    fileName: 'IPT_SIP게이트웨이_세팅가이드.pdf',
-    downloads: 51,
-    description: 'CUCM 교환기 단말 SIP 트렁크 연동, G.711 코덱 세팅 및 CP-7821 IP폰 내선 번호 설정 매뉴얼'
-  },
-  {
-    id: 5,
-    code: 'DOC-2026-FORM-005',
-    title: '[양식] 현장 시공 준공 검사 확인서 표준 서식 (XLSX)',
-    category: '서식/양식',
-    author: '경영지원팀',
-    version: 'v3.0',
-    date: '2026-08-01',
-    fileSize: '124 KB',
-    fileName: '준공검사확인서_표준양식_v3.xlsx',
-    downloads: 105,
-    description: '아인스텍 표준 준공 검사 체크리스트 및 감리 승인 양식 서식'
-  },
-  {
-    id: 6,
-    code: 'DOC-2026-REP-008',
-    title: '대전 R&D 센터 전산실 통합 네트워크 준공 보고서 (PDF)',
-    category: '보고서',
-    author: '이강욱 팀장',
-    version: 'v1.0',
-    date: '2026-08-15',
-    fileSize: '12.8 MB',
-    fileName: '대전RND_전산실_준공보고서.pdf',
-    downloads: 29,
-    description: 'Cisco 백본 스위치 이중화 구성 및 광케이블 OTDR 손실률 측정 결과 보고서'
-  }
-];
+const INITIAL_DOCUMENTS = [];
 
 export default function DocumentsPage() {
   const { currentUser } = useAuth();
@@ -104,13 +25,32 @@ export default function DocumentsPage() {
   const [formFileName, setFormFileName] = useState('');
   const [formDescription, setFormDescription] = useState('');
 
-  // Load from localStorage
+  // Fetch from Real Backend SQLite API `/api/documents`
   useEffect(() => {
+    fetchDocsFromAPI();
+  }, []);
+
+  const fetchDocsFromAPI = async () => {
+    try {
+      const res = await fetch('/api/documents');
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data || []);
+        return;
+      }
+    } catch (e) {
+      console.warn('Docs API connection fallback');
+    }
+
     const saved = localStorage.getItem('networkin_documents');
     if (saved) {
-      try { setDocuments(JSON.parse(saved)); } catch (e) {}
+      try {
+        setDocuments(JSON.parse(saved));
+      } catch (e) {}
+    } else {
+      setDocuments([]);
     }
-  }, []);
+  };
 
   const saveDocuments = (newDocs) => {
     setDocuments(newDocs);
