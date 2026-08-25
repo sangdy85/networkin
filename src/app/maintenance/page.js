@@ -31,12 +31,8 @@ export default function MaintenancePage() {
   const [formResolutionNote, setFormResolutionNote] = useState('');
   const [formDate, setFormDate] = useState('2026-08-19');
 
-  // Load from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('networkin_maintenance');
-    if (saved) {
-      try { setTickets(JSON.parse(saved)); } catch (e) {}
-    }
+    setTickets([]);
   }, []);
 
   // Sync Schedule Helper to register maintenance ticket in /schedule

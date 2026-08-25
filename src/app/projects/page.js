@@ -49,20 +49,9 @@ export default function ProjectsPage() {
         return;
       }
     } catch (e) {
-      console.warn('Projects API fallback');
+      console.warn('Projects API error', e);
     }
-
-    const saved = localStorage.getItem('networkin_projects');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setProjects(parsed);
-        syncAllProjectsToSchedule(parsed);
-      } catch (e) {}
-    } else {
-      setProjects([]);
-      syncAllProjectsToSchedule([]);
-    }
+    setProjects([]);
   };
 
   // Sync All Projects to Schedule

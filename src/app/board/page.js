@@ -24,12 +24,8 @@ export default function BoardPage() {
   // Posts State
   const [posts, setPosts] = useState(INITIAL_POSTS);
 
-  // Load from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('networkin_board_posts');
-    if (saved) {
-      try { setPosts(JSON.parse(saved)); } catch (e) {}
-    }
+    setPosts([]);
   }, []);
 
   const savePosts = (newPosts) => {

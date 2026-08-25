@@ -49,20 +49,9 @@ export default function NetworkPage() {
         return;
       }
     } catch (e) {
-      console.warn('Network API fallback');
+      console.warn('Network API error', e);
     }
-
-    const saved = localStorage.getItem('networkin_network_items');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setItems(parsed);
-        syncAllToSchedule(parsed);
-      } catch (e) {}
-    } else {
-      setItems([]);
-      syncAllToSchedule([]);
-    }
+    setItems([]);
   };
 
   const saveItems = (newItems) => {

@@ -48,13 +48,9 @@ export default function IPTPage() {
         return;
       }
     } catch (e) {
-      console.warn('API connection fallback to localStorage');
+      console.warn('IPT API error', e);
     }
-
-    const saved = localStorage.getItem('networkin_ipt_items');
-    if (saved) {
-      try { setItems(JSON.parse(saved)); } catch (e) {}
-    }
+    setItems([]);
   };
 
   // Open Create Modal

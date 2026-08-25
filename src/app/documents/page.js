@@ -39,17 +39,9 @@ export default function DocumentsPage() {
         return;
       }
     } catch (e) {
-      console.warn('Docs API connection fallback');
+      console.warn('Docs API error', e);
     }
-
-    const saved = localStorage.getItem('networkin_documents');
-    if (saved) {
-      try {
-        setDocuments(JSON.parse(saved));
-      } catch (e) {}
-    } else {
-      setDocuments([]);
-    }
+    setDocuments([]);
   };
 
   const saveDocuments = (newDocs) => {

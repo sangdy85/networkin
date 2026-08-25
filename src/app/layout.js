@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import './globals.css';
 import Link from 'next/link';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -12,6 +13,24 @@ function SidebarNav() {
   const pathname = usePathname();
 
   const isMaster = currentUser?.id === 'netadmin' || currentUser?.role === '마스터 관리자';
+
+  // Purge legacy mock data from browser localStorage once and for all
+  useEffect(() => {
+    try {
+      const legacyKeys = [
+        'networkin_network_items',
+        'networkin_ipt_items',
+        'networkin_projects',
+        'networkin_meeting_items',
+        'networkin_schedules_v3',
+        'networkin_documents',
+        'networkin_inventory',
+        'networkin_board_posts',
+        'networkin_maintenance'
+      ];
+      legacyKeys.forEach(k => localStorage.removeItem(k));
+    } catch (e) {}
+  }, []);
 
   return (
     <aside className="sidebar">

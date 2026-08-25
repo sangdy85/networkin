@@ -50,20 +50,9 @@ export default function MeetingPage() {
         return;
       }
     } catch (e) {
-      console.warn('Meeting API connection fallback');
+      console.warn('Meeting API error', e);
     }
-
-    const saved = localStorage.getItem('networkin_meeting_items');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setItems(parsed);
-        syncAllToSchedule(parsed);
-      } catch (e) {}
-    } else {
-      setItems([]);
-      syncAllToSchedule([]);
-    }
+    setItems([]);
   };
 
   const saveItems = (newItems) => {

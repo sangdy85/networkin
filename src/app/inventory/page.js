@@ -26,15 +26,11 @@ export default function InventoryPage() {
 
   // Outbound Form State
   const [outboundQty, setOutboundQty] = useState(1);
-  const [outboundSite, setOutboundSite] = useState('천안 A공장 시공현장');
+  const [outboundSite, setOutboundSite] = useState('');
   const [outboundWorker, setOutboundWorker] = useState('김철수 과장');
 
-  // Load from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('networkin_inventory');
-    if (saved) {
-      try { setInventory(JSON.parse(saved)); } catch (e) {}
-    }
+    setInventory([]);
   }, []);
 
   const saveInventory = (newInv) => {
