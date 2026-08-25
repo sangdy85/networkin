@@ -35,15 +35,6 @@ function SidebarNav() {
           <Link href="/mail">
             <span style={{ fontSize: '1.2rem' }}>✉️</span>
             <span>메일</span>
-            <span style={{
-              marginLeft: 'auto',
-              backgroundColor: '#E63946',
-              color: '#fff',
-              fontSize: '0.7rem',
-              fontWeight: 700,
-              padding: '0.1rem 0.4rem',
-              borderRadius: '10px'
-            }}>3</span>
           </Link>
         </li>
 
