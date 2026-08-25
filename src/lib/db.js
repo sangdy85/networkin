@@ -104,6 +104,22 @@ db.exec(`
     text TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS mails (
+    id TEXT PRIMARY KEY,
+    sender TEXT NOT NULL,
+    sender_email TEXT,
+    recipient TEXT,
+    subject TEXT NOT NULL,
+    snippet TEXT,
+    content TEXT,
+    date TEXT NOT NULL,
+    folder TEXT DEFAULT 'inbox',
+    unread INTEGER DEFAULT 1,
+    is_external INTEGER DEFAULT 0,
+    has_attachment INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // DB Schema is initialized cleanly without initial dummy seed data.

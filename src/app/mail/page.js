@@ -113,7 +113,41 @@ export default function MailPage() {
     }
   };
 
-  // Test & Save External Account
+  // Load Mails and External Account Settings
+  const fetchMailsFromAPI = async (folderName = activeTab) => {
+    try {
+      const res = await fetch(`/api/mail?folder=${folderName}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMails(data || []);
+      }
+    } catch (e) {
+      console.error('Fetch mails error', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchMailsFromAPI(activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const savedAccount = localStorage.getItem('networkin_ext_mail_account');
+    if (savedAccount) {
+      try {
+        const parsed = JSON.parse(savedAccount);
+        setExtProvider(parsed.provider || 'naver');
+        setExtEmail(parsed.email || '');
+        setExtPassword(parsed.password || '');
+        setExtIncomingServer(parsed.incomingServer || 'pop.naver.com');
+        setExtIncomingPort(parsed.incomingPort || '995');
+        setExtOutgoingServer(parsed.outgoingServer || 'smtp.naver.com');
+        setExtOutgoingPort(parsed.outgoingPort || '465');
+        if (parsed.email) setIsAccountLinked(true);
+      } catch (e) {}
+    }
+  }, []);
+
+  // Save External Account
   const handleSaveExternalAccount = (e) => {
     e.preventDefault();
     if (!extEmail.trim() || !extPassword.trim()) {
@@ -124,10 +158,11 @@ export default function MailPage() {
     const accountInfo = {
       provider: extProvider,
       email: extEmail.trim(),
-      incomingServer: extIncomingServer,
-      incomingPort: extIncomingPort,
-      outgoingServer: extOutgoingServer,
-      outgoingPort: extOutgoingPort,
+      password: extPassword.trim(),
+      incomingServer: extIncomingServer.trim(),
+      incomingPort: extIncomingPort.trim(),
+      outgoingServer: extOutgoingServer.trim(),
+      outgoingPort: extOutgoingPort.trim(),
       linkedAt: new Date().toLocaleString()
     };
 
@@ -137,32 +172,39 @@ export default function MailPage() {
     alert(`[${extEmail}] 외부 메일 계정 (POP3/SMTP) 연동 설정이 완료되었습니다!`);
   };
 
-  // Sync External Emails via POP3/IMAP Simulation
-  const handleSyncExternalMail = () => {
+  // Sync External Emails via Real POP3 Server
+  const handleSyncExternalMail = async () => {
+    if (!extEmail.trim() || !extPassword.trim() || !extIncomingServer.trim()) {
+      setIsExtModalOpen(true);
+      alert('외부 메일을 수신하려면 [외부 메일 계정 연동 설정]에서 메일주소, 연동 비밀번호, POP3 서버 정보를 설정해 주세요.');
+      return;
+    }
+
     setIsSyncing(true);
-    setTimeout(() => {
-      const newExtMail = {
-        id: Date.now(),
-        sender: '(주)천안정밀 외주구매팀 (외부)',
-        email: 'purchase@cheonan-precision.co.kr',
-        subject: `[외부수신] 천안 1공장 배선공사 자재 견적 승인 및 계약 요청 (${new Date().toLocaleTimeString().slice(0, 5)})`,
-        snippet: '아인스텍 이강욱 팀장님, 승인된 2구역 UTP 배선 포설 견적서 최종 확인 완료되어 계약 메일 전달드립니다.',
-        date: '방금 전',
-        unread: true,
-        hasAttachment: true,
-        isExternal: true,
-        content: `안녕하세요 아인스텍 이강욱 팀장님, (주)천안정밀 외주구매팀 최성민 과장입니다.
+    try {
+      const res = await fetch('/api/mail/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: extIncomingServer.trim(),
+          port: extIncomingPort.trim(),
+          user: extEmail.trim(),
+          pass: extPassword.trim()
+        })
+      });
 
-보내주신 천안 1공장 생산라인 2구역 통합 UTP/광배선 공사 견적서를 상부 보고 후 최종 승인받았습니다.
-첨부된 발주 계약 서식 확인 후 전자 서명 부탁드립니다.
-
-감사합니다.`
-      };
-
-      setMails([newExtMail, ...mails]);
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || '외부 메일 수신 중 오류가 발생했습니다.');
+      } else {
+        alert(`🔄 외부 메일 연동 서버 (${extEmail})에서 신규 메일 ${data.count}건을 가져왔습니다!`);
+        fetchMailsFromAPI(activeTab);
+      }
+    } catch (e) {
+      alert(`외부 메일 연동 서버 접속 오류: ${e.message}`);
+    } finally {
       setIsSyncing(false);
-      alert(`🔄 외부 메일 연동 서버 (${extEmail})에서 신규 외부 수신 메일 1건을 가져왔습니다!`);
-    }, 1200);
+    }
   };
 
   // When signature selection changes, update body signature!
@@ -285,14 +327,53 @@ export default function MailPage() {
   };
 
   // Send Mail Action via Linked External Server
-  const handleSendMail = () => {
-    const recipient = toSelf ? 'lku@networkin.co.kr' : toAddress;
+  const handleSendMail = async () => {
+    const recipient = toSelf ? (extEmail || 'lku@networkin.co.kr') : toAddress;
     if (!recipient.trim()) { alert('받는 사람 메일 주소를 입력해 주세요.'); return; }
     if (!subject.trim()) { alert('제목을 입력해 주세요.'); return; }
 
-    const isExtSender = senderAccount.includes('@naver.com') || senderAccount.includes('@gmail.com');
-    alert(`[${senderAccount}] 계정을 통해 [${recipient}] (으)로 메일이 발송되었습니다!\n(${isExtSender ? '외부 SMTP 연동 발송 성공' : '사내 SMTP 연동 발송 성공'})`);
-    setIsComposing(false);
+    try {
+      const res = await fetch('/api/mail/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host: extOutgoingServer.trim(),
+          port: extOutgoingPort.trim(),
+          user: extEmail.trim(),
+          pass: extPassword.trim(),
+          to: recipient.trim(),
+          subject: subject.trim(),
+          content: mailBody
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || '메일이 발송되었습니다.');
+        setIsComposing(false);
+        setSubject('');
+        fetchMailsFromAPI(activeTab);
+      } else {
+        alert(`메일 발송 실패: ${data.error}`);
+      }
+    } catch (err) {
+      alert(`메일 발송 오류: ${err.message}`);
+    }
+  };
+
+  // Delete Mail
+  const handleDeleteMail = async (id) => {
+    if (confirm('이 메일을 삭제하시겠습니까?')) {
+      try {
+        const res = await fetch(`/api/mail?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (res.ok) {
+          setSelectedMail(null);
+          fetchMailsFromAPI(activeTab);
+        }
+      } catch (err) {
+        console.error('Delete mail error', err);
+      }
+    }
   };
 
   return (
@@ -677,6 +758,7 @@ export default function MailPage() {
                 <div style={{ display: 'flex', gap: '0.75rem' }}>
                   <button onClick={() => { setIsComposing(true); setToAddress(selectedMail.email); setSubject(`Re: ${selectedMail.subject}`); }} className="btn btn-accent">↩️ 외부 답장 쓰기</button>
                   <button onClick={() => { setIsComposing(true); setSubject(`Fwd: ${selectedMail.subject}`); updateMailBody(`${selectedMail.content}\n\n${activeSigText}`); }} className="btn btn-secondary">➡️ 전달</button>
+                  <button onClick={() => handleDeleteMail(selectedMail.id)} className="btn btn-secondary" style={{ color: '#E63946', borderColor: '#E63946' }}>🗑️ 메일 삭제</button>
                 </div>
               </div>
             ) : (
