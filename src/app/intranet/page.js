@@ -505,32 +505,96 @@ export default function IntranetPage() {
                   </div>
                 </div>
               ) : primaryNetworkDiagram.filePath && isPPTFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) ? (
-                <div style={{ width: '100%', height: '620px', position: 'relative', borderRadius: '8px', overflow: 'hidden', background: '#0D152D', border: '1px solid rgba(210, 71, 38, 0.4)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ width: '100%', height: '580px', position: 'relative', borderRadius: '12px', overflow: 'hidden', background: 'linear-gradient(135deg, #0F172A, #020617)', border: '1px solid rgba(210, 71, 38, 0.4)', display: 'flex', flexDirection: 'column' }}>
                   
-                  {/* Top PowerPoint Bar */}
-                  <div style={{ background: '#D24726', color: '#fff', padding: '0.55rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', fontWeight: 600 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {/* Top PowerPoint Header Bar */}
+                  <div style={{ background: '#D24726', color: '#fff', padding: '0.6rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span>📊</span>
                       <span>PowerPoint 슬라이드 1 (표지) 미리보기 - {primaryNetworkDiagram.title}</span>
                     </div>
-                    <span style={{ fontSize: '0.75rem', background: 'rgba(0,0,0,0.25)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                      PPTX
+                    <span style={{ fontSize: '0.75rem', background: 'rgba(0,0,0,0.25)', padding: '0.15rem 0.55rem', borderRadius: '4px', fontFamily: 'monospace' }}>
+                      .PPTX
                     </span>
                   </div>
 
-                  {/* Office & Google Embed Viewer Frame */}
-                  <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%', background: '#fff', overflow: 'hidden' }}>
-                    <iframe
-                      src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(typeof window !== 'undefined' ? (window.location.origin + primaryNetworkDiagram.filePath) : primaryNetworkDiagram.filePath)}`}
-                      title={primaryNetworkDiagram.title}
-                      style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
-                    />
+                  {/* Native Presentation Slide 1 Canvas */}
+                  <div style={{ flex: 1, padding: '2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'radial-gradient(circle at center, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.9) 100%)' }}>
+                    <div style={{
+                      width: '100%',
+                      maxWidth: '720px',
+                      aspectRatio: '16/9',
+                      background: 'linear-gradient(135deg, #1E293B, #0F172A)',
+                      border: '2px solid rgba(210, 71, 38, 0.6)',
+                      borderRadius: '12px',
+                      padding: '2.25rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justify: 'space-between',
+                      boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
+                      textAlign: 'left',
+                      position: 'relative'
+                    }}>
+                      {/* Slide Top Bar */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.78rem', color: '#D24726', fontWeight: 700, letterSpacing: '1.2px' }}>
+                          🏢 EINSTEC NETWORK ARCHITECTURE
+                        </span>
+                        <span style={{ fontSize: '0.75rem', background: 'rgba(210, 71, 38, 0.15)', color: '#FF7D61', border: '1px solid rgba(210, 71, 38, 0.3)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                          슬라이드 1 / 1 (표지 미리보기)
+                        </span>
+                      </div>
+
+                      {/* Slide Main Content */}
+                      <div style={{ margin: '1rem 0' }}>
+                        <h2 style={{ fontSize: '1.45rem', fontWeight: 700, color: '#fff', lineHeight: '1.4', marginBottom: '0.5rem' }}>
+                          {primaryNetworkDiagram.title}
+                        </h2>
+                        <div style={{ fontSize: '0.9rem', color: 'var(--color-accent)', marginBottom: '0.75rem' }}>
+                          사내 네트워크 인프라 및 토폴로지 구성 명세서 ({primaryNetworkDiagram.version})
+                        </div>
+                        {primaryNetworkDiagram.description && (
+                          <p style={{ fontSize: '0.82rem', color: '#8D99AE', lineHeight: '1.5', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {primaryNetworkDiagram.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Slide Bottom Footer */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.85rem', fontSize: '0.78rem', color: '#8D99AE' }}>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                          <span>✍️ 작성자: <strong style={{ color: '#fff' }}>{primaryNetworkDiagram.author}</strong></span>
+                          <span>📅 개정일: <strong style={{ color: '#fff' }}>{primaryNetworkDiagram.date}</strong></span>
+                        </div>
+                        {primaryNetworkDiagram.targetInfo && (
+                          <span style={{ color: 'var(--status-pending)', fontFamily: 'monospace' }}>
+                            💻 {primaryNetworkDiagram.targetInfo}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Tag Badge */}
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '-12px',
+                        right: '20px',
+                        background: '#D24726',
+                        color: '#fff',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        padding: '0.2rem 0.6rem',
+                        borderRadius: '4px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
+                      }}>
+                        Slide 1 Preview
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Bottom Action Footer */}
-                  <div style={{ background: '#1C2541', padding: '0.6rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)' }}>
-                    <span style={{ fontSize: '0.78rem', color: '#8D99AE' }}>
-                      💡 로컬 환경(localhost)에서는 Office 온라인 뷰어 대신 [새 탭에서 열기] 또는 [다운로드]를 이용하세요.
+                  {/* Bottom Action Footer Bar */}
+                  <div style={{ background: '#1C2541', padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#8D99AE' }}>
+                      💡 PPTX 문서의 슬라이드 1 표지 미리보기입니다. 망구성도 도면을 그림으로 보시려면 PNG/JPG 이미지나 PDF로 업로드를 권장합니다.
                     </span>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       {primaryNetworkDiagram.filePath && (
@@ -539,9 +603,9 @@ export default function IntranetPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn btn-secondary"
-                          style={{ padding: '0.35rem 0.85rem', fontSize: '0.78rem', textDecoration: 'none' }}
+                          style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', textDecoration: 'none' }}
                         >
-                          📖 새 탭에서 PPTX 열기
+                          📖 새 탭에서 열기
                         </a>
                       )}
                       {primaryNetworkDiagram.filePath && (
@@ -549,9 +613,9 @@ export default function IntranetPage() {
                           href={primaryNetworkDiagram.filePath}
                           download={primaryNetworkDiagram.fileName}
                           className="btn btn-accent"
-                          style={{ padding: '0.35rem 0.95rem', fontSize: '0.78rem', textDecoration: 'none', background: '#D24726', borderColor: '#D24726', color: '#fff', fontWeight: 600 }}
+                          style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', textDecoration: 'none', background: '#D24726', borderColor: '#D24726', color: '#fff', fontWeight: 600 }}
                         >
-                          📥 PPTX 원본 다운로드 ({primaryNetworkDiagram.fileSize})
+                          📥 PPTX 파일 다운로드 ({primaryNetworkDiagram.fileSize})
                         </a>
                       )}
                     </div>
