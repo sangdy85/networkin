@@ -90,11 +90,15 @@ export default function IntranetPage() {
            target.endsWith('.gif') || target.endsWith('.svg') || target.endsWith('.webp');
   };
 
-  // Determine active display image for primary section
-  const primaryDisplayImage = (primaryNetworkDiagram && (
-    (isImageFile('', primaryNetworkDiagram.previewImgPath) ? primaryNetworkDiagram.previewImgPath : '') ||
-    (isImageFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) ? primaryNetworkDiagram.filePath : '')
-  )) || '';
+  // Determine active display image streaming endpoint for primary section
+  const hasPrimaryImage = primaryNetworkDiagram && (
+    isImageFile('', primaryNetworkDiagram.previewImgPath) ||
+    isImageFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath)
+  );
+
+  const primaryDisplayImage = (primaryNetworkDiagram && hasPrimaryImage)
+    ? `/api/intranet/download?id=${primaryNetworkDiagram.id}&type=preview`
+    : '';
 
   // Document File Upload Handler (PPTX, PDF, HWP, etc.)
   const handleDocFileUpload = async (e) => {
@@ -1272,10 +1276,13 @@ export default function IntranetPage() {
                         ⏳ 이미지 업로드 중...
                       </div>
                     ) : formPreviewImgPath ? (
-                      <div>
-                        <div style={{ fontSize: '1.3rem', marginBottom: '0.2rem' }}>🖼️</div>
-                        <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.82rem' }}>대표 이미지 업로드됨</div>
-                        <div style={{ fontSize: '0.72rem', color: '#FFB703', marginTop: '0.15rem' }}>메인 화면에 직접 렌더링됩니다</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+                        <img
+                          src={formPreviewImgPath}
+                          alt="대표 이미지 미리보기"
+                          style={{ maxHeight: '75px', maxWidth: '100%', borderRadius: '6px', objectFit: 'contain', marginBottom: '0.35rem', border: '1px solid rgba(255,183,3,0.5)' }}
+                        />
+                        <div style={{ fontWeight: 600, color: '#FFB703', fontSize: '0.78rem' }}>🖼️ 대표 이미지 등록됨</div>
                       </div>
                     ) : (
                       <div>

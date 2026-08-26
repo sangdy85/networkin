@@ -3,11 +3,26 @@ import path from 'path';
 import fs from 'fs';
 import db from '@/lib/db';
 
+const getMimeType = (filePath = '') => {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.png': return 'image/png';
+    case '.jpg':
+    case '.jpeg': return 'image/jpeg';
+    case '.webp': return 'image/webp';
+    case '.svg': return 'image/svg+xml';
+    case '.gif': return 'image/gif';
+    case '.pdf': return 'application/pdf';
+    default: return 'application/octet-stream';
+  }
+};
+
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     const type = searchParams.get('type') || 'doc'; // 'doc' | 'preview'
+    const mode = searchParams.get('mode') || (type === 'preview' ? 'inline' : 'attachment');
 
     if (!id) {
       return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
@@ -18,8 +33,18 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    const targetRelativePath = type === 'preview' ? doc.preview_img_path : doc.file_path;
-    const targetFileName = type === 'preview' ? `preview_${doc.file_name}` : doc.file_name;
+    // Determine target file path
+    let targetRelativePath = type === 'preview' ? (doc.preview_img_path || doc.file_path) : doc.file_path;
+    let targetFileName = type === 'preview' ? `preview_${doc.file_name}` : doc.file_name;
+
+    // Fallback: If preview requested but preview_img_path is empty, check if doc.file_path is an image
+    if (type === 'preview' && !doc.preview_img_path) {
+      if (doc.file_path && getMimeType(doc.file_path).startsWith('image/')) {
+        targetRelativePath = doc.file_path;
+      } else {
+        return NextResponse.json({ error: 'No preview image available for this document' }, { status: 404 });
+      }
+    }
 
     if (!targetRelativePath) {
       return NextResponse.json({ error: 'File path not set' }, { status: 404 });
@@ -34,18 +59,21 @@ export async function GET(req) {
     }
 
     const fileBuffer = fs.readFileSync(absolutePath);
+    const mimeType = getMimeType(targetRelativePath);
     const encodedFileName = encodeURIComponent(targetFileName).replace(/['()]/g, escape).replace(/\*/g, '%2A');
 
-    return new NextResponse(fileBuffer, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`,
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
-    });
+    const headers = {
+      'Content-Type': mimeType,
+      'Cache-Control': 'public, max-age=31536000, immutable'
+    };
+
+    if (mode === 'inline' || mimeType.startsWith('image/')) {
+      headers['Content-Disposition'] = `inline; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`;
+    } else {
+      headers['Content-Disposition'] = `attachment; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`;
+    }
+
+    return new NextResponse(fileBuffer, { status: 200, headers });
   } catch (error) {
     console.error('Download error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
