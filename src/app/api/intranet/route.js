@@ -18,6 +18,7 @@ export async function GET() {
       fileName: r.file_name,
       filePath: r.file_path || '',
       fileSize: r.file_size || '',
+      previewImgPath: r.preview_img_path || '',
       isPrimary: Boolean(r.is_primary),
       description: r.description || '',
       createdAt: r.created_at
@@ -44,6 +45,7 @@ export async function POST(req) {
       fileName,
       filePath,
       fileSize,
+      previewImgPath,
       isPrimary,
       description
     } = body;
@@ -56,8 +58,8 @@ export async function POST(req) {
     }
 
     const stmt = db.prepare(`
-      INSERT INTO intranet_docs (code, title, category, security_level, version, author, date, target_info, file_name, file_path, file_size, is_primary, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO intranet_docs (code, title, category, security_level, version, author, date, target_info, file_name, file_path, file_size, preview_img_path, is_primary, description)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const info = stmt.run(
@@ -72,6 +74,7 @@ export async function POST(req) {
       fileName || `${title.replace(/\s+/g, '_')}.pdf`,
       filePath || '',
       fileSize || '0 KB',
+      previewImgPath || '',
       isPrimaryVal,
       description || ''
     );
@@ -100,6 +103,7 @@ export async function PUT(req) {
       fileName,
       filePath,
       fileSize,
+      previewImgPath,
       isPrimary,
       description
     } = body;
@@ -123,7 +127,7 @@ export async function PUT(req) {
 
     const stmt = db.prepare(`
       UPDATE intranet_docs
-      SET code = ?, title = ?, category = ?, security_level = ?, version = ?, author = ?, date = ?, target_info = ?, file_name = ?, file_path = ?, file_size = ?, is_primary = ?, description = ?
+      SET code = ?, title = ?, category = ?, security_level = ?, version = ?, author = ?, date = ?, target_info = ?, file_name = ?, file_path = ?, file_size = ?, preview_img_path = ?, is_primary = ?, description = ?
       WHERE id = ?
     `);
 
@@ -139,6 +143,7 @@ export async function PUT(req) {
       fileName,
       filePath || '',
       fileSize || '',
+      previewImgPath || '',
       isPrimaryVal,
       description || '',
       id

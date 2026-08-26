@@ -44,11 +44,14 @@ export default function IntranetPage() {
   const [formFileName, setFormFileName] = useState('');
   const [formFilePath, setFormFilePath] = useState('');
   const [formFileSize, setFormFileSize] = useState('');
+  const [formPreviewImgPath, setFormPreviewImgPath] = useState('');
+  const [formPreviewImgName, setFormPreviewImgName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formIsPrimary, setFormIsPrimary] = useState(true);
 
-  // Upload progress state
-  const [isUploading, setIsUploading] = useState(false);
+  // Upload progress states
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [isUploadingImg, setIsUploadingImg] = useState(false);
 
   // Fetch documents from backend API `/api/intranet`
   useEffect(() => {
@@ -77,12 +80,19 @@ export default function IntranetPage() {
   // History list for 망구성도
   const networkDiagramHistory = documents.filter(d => d.category === '망구성도');
 
-  // File Upload Handler
-  const handleFileUpload = async (e) => {
+  // Helper check for image formats
+  const isImageFile = (fileName = '', filePath = '') => {
+    const target = (fileName || filePath).toLowerCase();
+    return target.endsWith('.png') || target.endsWith('.jpg') || target.endsWith('.jpeg') ||
+           target.endsWith('.gif') || target.endsWith('.svg') || target.endsWith('.webp');
+  };
+
+  // Document File Upload Handler (PPTX, PDF, HWP, etc.)
+  const handleDocFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsUploading(true);
+    setIsUploadingDoc(true);
     const formData = new FormData();
     formData.append('file', file);
 
@@ -100,13 +110,53 @@ export default function IntranetPage() {
         if (!formTitle.trim()) {
           setFormTitle(file.name.replace(/\.[^/.]+$/, ''));
         }
+
+        // If the main document uploaded is an image, set preview image automatically
+        if (isImageFile(data.fileName, data.filePath)) {
+          setFormPreviewImgPath(data.filePath);
+          setFormPreviewImgName(data.fileName);
+        }
       } else {
-        alert(`파일 업로드 실패: ${data.error || '오류가 발생했습니다.'}`);
+        alert(`문서 파일 업로드 실패: ${data.error || '오류가 발생했습니다.'}`);
       }
     } catch (err) {
       alert(`업로드 중 오류 발생: ${err.message}`);
     } finally {
-      setIsUploading(false);
+      setIsUploadingDoc(false);
+    }
+  };
+
+  // Preview Image Upload Handler (PNG, JPG, WebP)
+  const handleImgFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!isImageFile(file.name)) {
+      alert('대표 이미지로는 PNG, JPG, JPEG, WebP, SVG 이미지 파일만 선택 가능합니다.');
+      return;
+    }
+
+    setIsUploadingImg(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/intranet/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setFormPreviewImgPath(data.filePath);
+        setFormPreviewImgName(data.fileName);
+      } else {
+        alert(`대표 이미지 업로드 실패: ${data.error || '오류가 발생했습니다.'}`);
+      }
+    } catch (err) {
+      alert(`이미지 업로드 오류: ${err.message}`);
+    } finally {
+      setIsUploadingImg(false);
     }
   };
 
@@ -132,6 +182,8 @@ export default function IntranetPage() {
     setFormFileName('');
     setFormFilePath('');
     setFormFileSize('');
+    setFormPreviewImgPath('');
+    setFormPreviewImgName('');
     setFormDescription('');
     setFormIsPrimary(true);
     setIsModalOpen(true);
@@ -151,6 +203,8 @@ export default function IntranetPage() {
     setFormFileName(doc.fileName);
     setFormFilePath(doc.filePath || '');
     setFormFileSize(doc.fileSize || '');
+    setFormPreviewImgPath(doc.previewImgPath || '');
+    setFormPreviewImgName(doc.previewImgPath ? '대표_이미지.png' : '');
     setFormDescription(doc.description || '');
     setFormIsPrimary(doc.isPrimary);
     setIsModalOpen(true);
@@ -165,7 +219,7 @@ export default function IntranetPage() {
     }
 
     if (!formFileName.trim() && !formFilePath.trim()) {
-      alert('첨부 파일을 선택/업로드해 주세요.');
+      alert('첨부 원본 문서 파일을 선택/업로드해 주세요.');
       return;
     }
 
@@ -179,9 +233,10 @@ export default function IntranetPage() {
       author: formAuthor.trim() || (currentUser?.name || '담당자'),
       date: formDate || new Date().toISOString().split('T')[0],
       targetInfo: formTargetInfo.trim(),
-      fileName: formFileName.trim() || 'file.pdf',
+      fileName: formFileName.trim() || 'document.pptx',
       filePath: formFilePath.trim(),
       fileSize: formFileSize.trim() || '0 KB',
+      previewImgPath: formPreviewImgPath.trim(),
       isPrimary: formIsPrimary,
       description: formDescription.trim()
     };
@@ -196,7 +251,7 @@ export default function IntranetPage() {
 
       const data = await res.json();
       if (res.ok) {
-        alert(editingDoc ? '문서 정보가 수정되었습니다.' : '신규 문서가 성공적으로 업로드/등록되었습니다.');
+        alert(editingDoc ? '문서 정보가 수정되었습니다.' : '신규 문서 및 대표 이미지가 업로드되었습니다.');
         setIsModalOpen(false);
         fetchDocs();
       } else {
@@ -216,7 +271,7 @@ export default function IntranetPage() {
         body: JSON.stringify({ id: docId, action: 'setPrimary' })
       });
       if (res.ok) {
-        alert('선택한 버젼이 대표 망구성도로 변경되었습니다.');
+        alert('선택한 버젼이 사내 대표 망구성도로 변경되었습니다.');
         fetchDocs();
       }
     } catch (err) {
@@ -226,7 +281,7 @@ export default function IntranetPage() {
 
   // Delete Document
   const handleDeleteDoc = async (id) => {
-    if (confirm('이 문서를 완전히 삭제하시겠습니까?')) {
+    if (confirm('이 문서를 삭제하시겠습니까?')) {
       try {
         const res = await fetch(`/api/intranet?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
         if (res.ok) {
@@ -239,22 +294,8 @@ export default function IntranetPage() {
     }
   };
 
-  // Helper check for image formats
-  const isImageFile = (fileName = '', filePath = '') => {
-    const target = (fileName || filePath).toLowerCase();
-    return target.endsWith('.png') || target.endsWith('.jpg') || target.endsWith('.jpeg') ||
-           target.endsWith('.gif') || target.endsWith('.svg') || target.endsWith('.webp');
-  };
-
-  // Helper check for PPT presentation formats
-  const isPPTFile = (fileName = '', filePath = '') => {
-    const target = (fileName || filePath).toLowerCase();
-    return target.endsWith('.ppt') || target.endsWith('.pptx');
-  };
-
-  // Filter Documents for display
+  // Filter Documents for main view
   const filteredDocs = documents.filter(doc => {
-    // If 망구성도 category selected, only display the Primary document in the main list
     if (activeCategory === '망구성도') {
       if (!doc.isPrimary) return false;
     } else {
@@ -290,6 +331,11 @@ export default function IntranetPage() {
     }
   };
 
+  // Determine active display image for primary section
+  const primaryDisplayImage = primaryNetworkDiagram
+    ? (primaryNetworkDiagram.previewImgPath || (isImageFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) ? primaryNetworkDiagram.filePath : ''))
+    : '';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       
@@ -300,7 +346,7 @@ export default function IntranetPage() {
             <span>🖥️</span> 사내망 관리 (Intranet Network Document Hub)
           </h1>
           <p className="portal-subtitle">
-            아인스텍 사내 대표 망구성도, 토폴로지, IP 대역 할당표 및 네트워크 관리 문서 통합 관리 센터
+            아인스텍 사내 대표 망구성도, 토폴로지, IP 대역 할당표 및 네트워크 관리 문서 통합 센터
           </p>
         </div>
         <div style={{ display: 'flex', gap: '0.6rem' }}>
@@ -310,7 +356,7 @@ export default function IntranetPage() {
               className="btn btn-secondary"
               style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.1rem', fontSize: '0.88rem' }}
             >
-              📜 망구성도 히스토리 ({networkDiagramHistory.length}개)
+              📜 문서 히스토리 ({networkDiagramHistory.length}개)
             </button>
           )}
           <button
@@ -318,12 +364,12 @@ export default function IntranetPage() {
             className="btn btn-accent"
             style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.65rem 1.2rem', fontSize: '0.92rem', fontWeight: 600 }}
           >
-            📤 문서 업로드 / 등록
+            📤 문서 & 대표 이미지 업로드
           </button>
         </div>
       </div>
 
-      {/* 2. Featured Representative Network Diagram Section (대표 망구성도 메인 뷰어) */}
+      {/* 2. Featured Representative Network Diagram Section (대표 망구성도 이미지 & 문서) */}
       <div className="panel" style={{
         padding: '1.5rem',
         background: 'linear-gradient(135deg, rgba(28, 37, 65, 0.95), rgba(11, 19, 43, 0.95))',
@@ -338,7 +384,7 @@ export default function IntranetPage() {
                 사내 대표 망구성도
               </h2>
               <span style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-                현재 사내 망에서 최신 표준으로 지정된 대표 네트워크 구성도입니다.
+                사내 메인 화면에 띄워진 대표 망구성도입니다. 원본 문서(PPTX/PDF 등)는 다운로드 및 히스토리에서 보존됩니다.
               </span>
             </div>
           </div>
@@ -346,7 +392,7 @@ export default function IntranetPage() {
           {primaryNetworkDiagram && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span className="badge" style={{ background: '#00B4D8', color: '#000', fontWeight: 700, fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}>
-                대표 문서 ({primaryNetworkDiagram.version})
+                대표 버젼 ({primaryNetworkDiagram.version})
               </span>
               <span className="badge" style={{ ...getSecurityBadgeStyle(primaryNetworkDiagram.securityLevel), fontSize: '0.78rem' }}>
                 {primaryNetworkDiagram.securityLevel}
@@ -358,7 +404,7 @@ export default function IntranetPage() {
         {primaryNetworkDiagram ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             
-            {/* Title & Info Banner */}
+            {/* Title & Info Bar */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', background: 'rgba(0, 180, 216, 0.08)', padding: '0.85rem 1.1rem', borderRadius: '10px', border: '1px solid rgba(0, 180, 216, 0.2)' }}>
               <div>
                 <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>
@@ -367,6 +413,7 @@ export default function IntranetPage() {
                 <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: '#8D99AE', flexWrap: 'wrap' }}>
                   <span>✍️ 작성자: {primaryNetworkDiagram.author}</span>
                   <span>📅 개정일: {primaryNetworkDiagram.date}</span>
+                  <span>📄 원본파일: <strong style={{ color: '#fff', fontFamily: 'monospace' }}>{primaryNetworkDiagram.fileName}</strong> ({primaryNetworkDiagram.fileSize})</span>
                   {primaryNetworkDiagram.targetInfo && <span style={{ color: 'var(--color-accent)', fontFamily: 'monospace' }}>💻 {primaryNetworkDiagram.targetInfo}</span>}
                 </div>
               </div>
@@ -379,7 +426,7 @@ export default function IntranetPage() {
                     className="btn btn-accent"
                     style={{ padding: '0.45rem 0.95rem', fontSize: '0.82rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}
                   >
-                    📥 대표 망구성도 다운로드 ({primaryNetworkDiagram.fileSize})
+                    📥 원본 문서 다운로드 ({primaryNetworkDiagram.fileName})
                   </a>
                 )}
                 <button
@@ -387,26 +434,26 @@ export default function IntranetPage() {
                   className="btn btn-secondary"
                   style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem' }}
                 >
-                  📜 이전 버젼 히스토리
+                  📜 문서 히스토리 ({networkDiagramHistory.length}개)
                 </button>
                 <button
                   onClick={() => handleOpenCreateModal('망구성도')}
                   className="btn btn-secondary"
                   style={{ padding: '0.45rem 0.85rem', fontSize: '0.82rem', color: 'var(--color-accent)', borderColor: 'rgba(0,180,216,0.4)' }}
                 >
-                  📤 새 버젼 업로드
+                  📤 새 문서 & 이미지 업로드
                 </button>
               </div>
             </div>
 
-            {/* Network Diagram View Area (1st Page Preview Format) */}
+            {/* Representative Image View Canvas Area */}
             <div style={{
               background: '#070C1E',
               border: '1px solid var(--border-color)',
               borderRadius: '12px',
               padding: '1.25rem',
               textAlign: 'center',
-              minHeight: '280px',
+              minHeight: '320px',
               display: 'flex',
               flexDirection: 'column',
               justify: 'center',
@@ -414,270 +461,80 @@ export default function IntranetPage() {
               overflow: 'hidden',
               position: 'relative'
             }}>
-              
-              {/* Preview Bar Indicator */}
-              <div style={{
-                width: '100%',
-                display: 'flex',
-                justify: 'space-between',
-                alignItems: 'center',
-                marginBottom: '0.85rem',
-                paddingBottom: '0.65rem',
-                borderBottom: '1px solid rgba(255,255,255,0.08)',
-                flexWrap: 'wrap',
-                gap: '0.5rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span className="badge" style={{ background: 'rgba(0, 180, 216, 0.2)', color: 'var(--color-accent)', border: '1px solid rgba(0, 180, 216, 0.4)', fontSize: '0.76rem', padding: '0.2rem 0.6rem' }}>
-                    📄 첫 번째 페이지 미리보기
-                  </span>
-                  <span style={{ fontSize: '0.78rem', color: '#8D99AE' }}>
-                    ({primaryNetworkDiagram.fileName})
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  {primaryNetworkDiagram.filePath && primaryNetworkDiagram.filePath.toLowerCase().endsWith('.pdf') && (
-                    <>
-                      <button
-                        onClick={() => setPdfViewMode('page1')}
-                        className={`btn ${pdfViewMode === 'page1' ? 'btn-accent' : 'btn-secondary'}`}
-                        style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
-                      >
-                        📄 1페이지 미리보기
-                      </button>
-                      <button
-                        onClick={() => setPdfViewMode('full')}
-                        className={`btn ${pdfViewMode === 'full' ? 'btn-accent' : 'btn-secondary'}`}
-                        style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
-                      >
-                        📖 전체 보기
-                      </button>
-                    </>
-                  )}
-                  {primaryNetworkDiagram.filePath && (
-                    <a
-                      href={primaryNetworkDiagram.filePath}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-secondary"
-                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', color: 'var(--color-accent)', textDecoration: 'none' }}
-                    >
-                      🔗 새 탭에서 열기
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              {isImageFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) && primaryNetworkDiagram.filePath ? (
+              {primaryDisplayImage ? (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
                     <img
-                      src={primaryNetworkDiagram.filePath}
+                      src={primaryDisplayImage}
                       alt={primaryNetworkDiagram.title}
-                      onClick={() => setLightboxImage(primaryNetworkDiagram.filePath)}
+                      onClick={() => setLightboxImage(primaryDisplayImage)}
                       style={{
                         maxWidth: '100%',
-                        maxHeight: '520px',
+                        maxHeight: '560px',
                         objectFit: 'contain',
                         borderRadius: '8px',
                         cursor: 'zoom-in',
-                        boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
-                        transition: 'transform 0.2s ease'
+                        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                        border: '1px solid rgba(255,255,255,0.08)'
                       }}
                     />
                     <div style={{
                       position: 'absolute',
                       top: '0.75rem',
                       right: '0.75rem',
-                      background: 'rgba(0,0,0,0.7)',
-                      color: '#fff',
-                      fontSize: '0.72rem',
-                      padding: '0.2rem 0.5rem',
-                      borderRadius: '4px',
-                      backdropFilter: 'blur(4px)'
-                    }}>
-                      Page 1 (대표 이미지)
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#8D99AE', marginTop: '0.6rem' }}>
-                    🔍 이미지를 클릭하면 전체 화면으로 확대하여 볼 수 있습니다.
-                  </div>
-                </div>
-              ) : primaryNetworkDiagram.filePath && isPPTFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) ? (
-                <div style={{ width: '100%', height: '580px', position: 'relative', borderRadius: '12px', overflow: 'hidden', background: 'linear-gradient(135deg, #0F172A, #020617)', border: '1px solid rgba(210, 71, 38, 0.4)', display: 'flex', flexDirection: 'column' }}>
-                  
-                  {/* Top PowerPoint Header Bar */}
-                  <div style={{ background: '#D24726', color: '#fff', padding: '0.6rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.84rem', fontWeight: 600 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span>📊</span>
-                      <span>PowerPoint 슬라이드 1 (표지) 미리보기 - {primaryNetworkDiagram.title}</span>
-                    </div>
-                    <span style={{ fontSize: '0.75rem', background: 'rgba(0,0,0,0.25)', padding: '0.15rem 0.55rem', borderRadius: '4px', fontFamily: 'monospace' }}>
-                      .PPTX
-                    </span>
-                  </div>
-
-                  {/* Native Presentation Slide 1 Canvas */}
-                  <div style={{ flex: 1, padding: '2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'radial-gradient(circle at center, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.9) 100%)' }}>
-                    <div style={{
-                      width: '100%',
-                      maxWidth: '720px',
-                      aspectRatio: '16/9',
-                      background: 'linear-gradient(135deg, #1E293B, #0F172A)',
-                      border: '2px solid rgba(210, 71, 38, 0.6)',
-                      borderRadius: '12px',
-                      padding: '2.25rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justify: 'space-between',
-                      boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
-                      textAlign: 'left',
-                      position: 'relative'
-                    }}>
-                      {/* Slide Top Bar */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.78rem', color: '#D24726', fontWeight: 700, letterSpacing: '1.2px' }}>
-                          🏢 EINSTEC NETWORK ARCHITECTURE
-                        </span>
-                        <span style={{ fontSize: '0.75rem', background: 'rgba(210, 71, 38, 0.15)', color: '#FF7D61', border: '1px solid rgba(210, 71, 38, 0.3)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                          슬라이드 1 / 1 (표지 미리보기)
-                        </span>
-                      </div>
-
-                      {/* Slide Main Content */}
-                      <div style={{ margin: '1rem 0' }}>
-                        <h2 style={{ fontSize: '1.45rem', fontWeight: 700, color: '#fff', lineHeight: '1.4', marginBottom: '0.5rem' }}>
-                          {primaryNetworkDiagram.title}
-                        </h2>
-                        <div style={{ fontSize: '0.9rem', color: 'var(--color-accent)', marginBottom: '0.75rem' }}>
-                          사내 네트워크 인프라 및 토폴로지 구성 명세서 ({primaryNetworkDiagram.version})
-                        </div>
-                        {primaryNetworkDiagram.description && (
-                          <p style={{ fontSize: '0.82rem', color: '#8D99AE', lineHeight: '1.5', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                            {primaryNetworkDiagram.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Slide Bottom Footer */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.85rem', fontSize: '0.78rem', color: '#8D99AE' }}>
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                          <span>✍️ 작성자: <strong style={{ color: '#fff' }}>{primaryNetworkDiagram.author}</strong></span>
-                          <span>📅 개정일: <strong style={{ color: '#fff' }}>{primaryNetworkDiagram.date}</strong></span>
-                        </div>
-                        {primaryNetworkDiagram.targetInfo && (
-                          <span style={{ color: 'var(--status-pending)', fontFamily: 'monospace' }}>
-                            💻 {primaryNetworkDiagram.targetInfo}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Tag Badge */}
-                      <div style={{
-                        position: 'absolute',
-                        bottom: '-12px',
-                        right: '20px',
-                        background: '#D24726',
-                        color: '#fff',
-                        fontSize: '0.68rem',
-                        fontWeight: 700,
-                        padding: '0.2rem 0.6rem',
-                        borderRadius: '4px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.4)'
-                      }}>
-                        Slide 1 Preview
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom Action Footer Bar */}
-                  <div style={{ background: '#1C2541', padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#8D99AE' }}>
-                      💡 PPTX 문서의 슬라이드 1 표지 미리보기입니다. 망구성도 도면을 그림으로 보시려면 PNG/JPG 이미지나 PDF로 업로드를 권장합니다.
-                    </span>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      {primaryNetworkDiagram.filePath && (
-                        <a
-                          href={primaryNetworkDiagram.filePath}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-secondary"
-                          style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', textDecoration: 'none' }}
-                        >
-                          📖 새 탭에서 열기
-                        </a>
-                      )}
-                      {primaryNetworkDiagram.filePath && (
-                        <a
-                          href={primaryNetworkDiagram.filePath}
-                          download={primaryNetworkDiagram.fileName}
-                          className="btn btn-accent"
-                          style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', textDecoration: 'none', background: '#D24726', borderColor: '#D24726', color: '#fff', fontWeight: 600 }}
-                        >
-                          📥 PPTX 파일 다운로드 ({primaryNetworkDiagram.fileSize})
-                        </a>
-                      )}
-                    </div>
-                  </div>
-
-                </div>
-              ) : primaryNetworkDiagram.filePath && primaryNetworkDiagram.filePath.toLowerCase().endsWith('.pdf') ? (
-                <div style={{ width: '100%', height: '520px', position: 'relative', borderRadius: '8px', overflow: 'hidden' }}>
-                  <iframe
-                    src={`${primaryNetworkDiagram.filePath}${pdfViewMode === 'page1' ? '#page=1&toolbar=0&navpanes=0&scrollbar=0&view=FitH' : ''}`}
-                    title={primaryNetworkDiagram.title}
-                    style={{ width: '100%', height: '100%', border: 'none', borderRadius: '8px', background: '#fff' }}
-                  />
-                  {pdfViewMode === 'page1' && (
-                    <div style={{
-                      position: 'absolute',
-                      bottom: '0.75rem',
-                      right: '0.75rem',
-                      background: 'rgba(11, 19, 43, 0.85)',
-                      border: '1px solid rgba(0,180,216,0.3)',
+                      background: 'rgba(0,0,0,0.75)',
                       color: 'var(--color-accent)',
                       fontSize: '0.75rem',
-                      padding: '0.3rem 0.7rem',
-                      borderRadius: '6px',
+                      fontWeight: 600,
+                      padding: '0.25rem 0.6rem',
+                      borderRadius: '4px',
                       backdropFilter: 'blur(4px)',
-                      pointerEvents: 'none'
+                      border: '1px solid rgba(0,180,216,0.3)'
                     }}>
-                      📄 1페이지 미리보기 모드 활성화됨
+                      🖼️ 대표 망구성도 이미지
                     </div>
-                  )}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#8D99AE', marginTop: '0.75rem' }}>
+                    🔍 이미지를 클릭하면 전체 화면으로 크게 확대하여 볼 수 있습니다.
+                  </div>
+                </div>
+              ) : primaryNetworkDiagram.filePath && primaryNetworkDiagram.filePath.toLowerCase().endsWith('.pdf') ? (
+                <div style={{ width: '100%', height: '540px', position: 'relative', borderRadius: '8px', overflow: 'hidden' }}>
+                  <iframe
+                    src={`${primaryNetworkDiagram.filePath}#page=1&toolbar=0&navpanes=0&scrollbar=0`}
+                    title={primaryNetworkDiagram.title}
+                    style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+                  />
                 </div>
               ) : (
-                /* Fallback File Card Preview */
-                <div style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ fontSize: '3.8rem' }}>📄</div>
-                  <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#fff' }}>
+                /* Fallback File Card Preview if no representative image was uploaded */
+                <div style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem' }}>
+                  <div style={{ fontSize: '3.8rem' }}>📊</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#fff' }}>
                     {primaryNetworkDiagram.fileName}
                   </div>
-                  <p style={{ fontSize: '0.85rem', color: '#8D99AE', maxWidth: '520px', lineHeight: '1.5' }}>
-                    {primaryNetworkDiagram.description || '대표 망구성도 첨부 파일의 1페이지 미리보기입니다. 전체 파일 확인 및 다운로드는 아래 버튼을 이용하세요.'}
+                  <p style={{ fontSize: '0.88rem', color: '#8D99AE', maxWidth: '520px', lineHeight: '1.5' }}>
+                    현재 등록된 원본 문서 파일({primaryNetworkDiagram.fileName})이 대표로 지정되어 있습니다. 메인 화면에 띄울 대표 이미지(PNG/JPG)를 업로드하면 바로 화면에 노출됩니다.
                   </p>
-                  {primaryNetworkDiagram.filePath && (
-                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                      <a
-                        href={primaryNetworkDiagram.filePath}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary"
-                        style={{ padding: '0.55rem 1.2rem', fontSize: '0.88rem', textDecoration: 'none' }}
-                      >
-                        📖 새 탭에서 문서 열기
-                      </a>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
+                    <button
+                      onClick={() => handleOpenEditModal(primaryNetworkDiagram)}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.55rem 1.2rem', fontSize: '0.88rem', color: 'var(--color-accent)' }}
+                    >
+                      🖼️ 대표 이미지 추가 등록
+                    </button>
+                    {primaryNetworkDiagram.filePath && (
                       <a
                         href={primaryNetworkDiagram.filePath}
                         download={primaryNetworkDiagram.fileName}
                         className="btn btn-accent"
                         style={{ padding: '0.55rem 1.4rem', fontSize: '0.88rem', textDecoration: 'none' }}
                       >
-                        📥 원본 다운로드 ({primaryNetworkDiagram.fileSize})
+                        📥 원본 문서 다운로드 ({primaryNetworkDiagram.fileSize})
                       </a>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -697,14 +554,14 @@ export default function IntranetPage() {
               등록된 대표 사내 망구성도가 없습니다
             </h3>
             <p style={{ fontSize: '0.85rem', color: '#8D99AE', marginBottom: '1.25rem' }}>
-              사내 본사/지사 백본망 구성도 또는 랙 배치도 이미지/PDF 파일을 업로드하여 대표 문서로 지정해 주세요.
+              원본 문서 파일(PPTX/PDF 등)과 메인 화면에 띄울 대표 이미지(PNG/JPG)를 같이 업로드하여 등록해 주세요.
             </p>
             <button
               onClick={() => handleOpenCreateModal('망구성도')}
               className="btn btn-accent"
               style={{ padding: '0.6rem 1.4rem', fontSize: '0.9rem', fontWeight: 600 }}
             >
-              📤 대표 망구성도 파일 업로드
+              📤 대표 문서 & 이미지 업로드
             </button>
           </div>
         )}
@@ -798,13 +655,13 @@ export default function IntranetPage() {
               flexWrap: 'wrap',
               gap: '0.5rem'
             }}>
-              <span>💡 <strong>망구성도</strong> 카테고리는 1개의 대표 문서만 활성화되어 노출됩니다. 이전 버전은 [망구성도 히스토리]에서 확인 가능합니다.</span>
+              <span>💡 <strong>망구성도</strong> 카테고리는 1개의 대표 이미지만 메인에 노출됩니다. 모든 과거 문서 파일은 [문서 히스토리]에서 확인 및 다운로드 가능합니다.</span>
               <button
                 onClick={() => setIsHistoryModalOpen(true)}
                 className="btn btn-secondary"
                 style={{ fontSize: '0.78rem', padding: '0.25rem 0.6rem' }}
               >
-                📜 이전 버젼 히스토리 ({networkDiagramHistory.length}개)
+                📜 문서 히스토리 ({networkDiagramHistory.length}개)
               </button>
             </div>
           )}
@@ -880,7 +737,7 @@ export default function IntranetPage() {
                   {doc.title}
                 </h3>
 
-                {/* Target Info (IP / Equipment) */}
+                {/* Target Info */}
                 {doc.targetInfo && (
                   <div style={{
                     background: 'rgba(255, 255, 255, 0.04)',
@@ -939,7 +796,7 @@ export default function IntranetPage() {
                       className="btn btn-secondary"
                       style={{ padding: '0.35rem 0.65rem', fontSize: '0.76rem', color: 'var(--color-accent)', borderColor: 'rgba(0,180,216,0.3)', textDecoration: 'none' }}
                     >
-                      📥 다운로드
+                      📥 원본 다운로드
                     </a>
                   ) : (
                     <button disabled className="btn btn-secondary" style={{ padding: '0.35rem 0.65rem', fontSize: '0.76rem', opacity: 0.5 }}>
@@ -1074,15 +931,16 @@ export default function IntranetPage() {
               {getCategoryIcon(viewDoc.category)} 카테고리: {viewDoc.category} | 버젼: {viewDoc.version}
             </div>
 
-            {/* File Preview Area if Image */}
-            {viewDoc.filePath && isImageFile(viewDoc.fileName, viewDoc.filePath) && (
+            {/* Preview Image Area */}
+            {(viewDoc.previewImgPath || (viewDoc.filePath && isImageFile(viewDoc.fileName, viewDoc.filePath))) && (
               <div style={{ background: '#000', borderRadius: '8px', padding: '0.5rem', marginBottom: '1.25rem', textAlign: 'center' }}>
                 <img
-                  src={viewDoc.filePath}
+                  src={viewDoc.previewImgPath || viewDoc.filePath}
                   alt={viewDoc.title}
-                  onClick={() => setLightboxImage(viewDoc.filePath)}
+                  onClick={() => setLightboxImage(viewDoc.previewImgPath || viewDoc.filePath)}
                   style={{ maxWidth: '100%', maxHeight: '350px', objectFit: 'contain', cursor: 'zoom-in', borderRadius: '6px' }}
                 />
+                <div style={{ fontSize: '0.72rem', color: '#8D99AE', marginTop: '0.4rem' }}>🖼️ 대표 미리보기 이미지 (클릭 시 확대)</div>
               </div>
             )}
 
@@ -1115,7 +973,7 @@ export default function IntranetPage() {
                 <span style={{ color: '#fff' }}>{viewDoc.date}</span>
               </div>
               <div>
-                <span style={{ color: '#8D99AE' }}>첨부 파일: </span>
+                <span style={{ color: '#8D99AE' }}>첨부 문서: </span>
                 <span style={{ color: '#fff', fontFamily: 'monospace' }}>{viewDoc.fileName}</span>
               </div>
               <div>
@@ -1166,7 +1024,7 @@ export default function IntranetPage() {
                     className="btn btn-accent"
                     style={{ fontSize: '0.85rem', textDecoration: 'none' }}
                   >
-                    📥 파일 다운로드
+                    📥 원본 문서 다운로드
                   </a>
                 )}
                 <button
@@ -1196,15 +1054,15 @@ export default function IntranetPage() {
           zIndex: 1000,
           padding: '1rem'
         }}>
-          <div className="panel" style={{ width: '100%', maxWidth: '750px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '780px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
               <div>
                 <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  📜 사내 망구성도 버젼 히스토리
+                  📜 사내 망구성도 버젼 & 문서 히스토리
                 </h2>
                 <span style={{ fontSize: '0.78rem', color: '#8D99AE' }}>
-                  과거 업로드된 망구성도 이력을 확인하고 대표 문서(Primary)를 변경할 수 있습니다.
+                  과거 업로드된 모든 문서 파일(PPTX, PDF 등)을 확인/다운로드하고 대표 문서(Primary)를 변경할 수 있습니다.
                 </span>
               </div>
               <button
@@ -1243,7 +1101,7 @@ export default function IntranetPage() {
                         </span>
                         {hDoc.isPrimary && (
                           <span className="badge" style={{ background: '#00B4D8', color: '#000', fontSize: '0.72rem', fontWeight: 700 }}>
-                            📌 현재 대표 문서
+                            📌 대표 버젼 (메인 표출)
                           </span>
                         )}
                         <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#fff' }}>
@@ -1253,7 +1111,8 @@ export default function IntranetPage() {
                       <div style={{ fontSize: '0.78rem', color: '#8D99AE', display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
                         <span>✍️ 작성자: {hDoc.author}</span>
                         <span>📅 등록일: {hDoc.date}</span>
-                        <span>📄 파일: {hDoc.fileName} ({hDoc.fileSize})</span>
+                        <span>📄 문서: <strong style={{ color: '#fff' }}>{hDoc.fileName}</strong> ({hDoc.fileSize})</span>
+                        {hDoc.previewImgPath && <span style={{ color: 'var(--color-accent)' }}>🖼️ 대표 이미지 등록됨</span>}
                       </div>
                     </div>
 
@@ -1274,7 +1133,7 @@ export default function IntranetPage() {
                           className="btn btn-accent"
                           style={{ fontSize: '0.78rem', padding: '0.35rem 0.65rem', textDecoration: 'none' }}
                         >
-                          📥 다운로드
+                          📥 원본 문서 다운로드
                         </a>
                       )}
                       <button
@@ -1304,7 +1163,7 @@ export default function IntranetPage() {
         </div>
       )}
 
-      {/* 7. Add/Edit Document Upload Modal */}
+      {/* 7. Add/Edit Document & Representative Image Upload Modal */}
       {isModalOpen && (
         <div style={{
           position: 'fixed',
@@ -1317,11 +1176,11 @@ export default function IntranetPage() {
           zIndex: 1000,
           padding: '1rem'
         }}>
-          <div className="panel" style={{ width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '680px', maxHeight: '92vh', overflowY: 'auto', padding: '1.5rem' }}>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
               <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#fff' }}>
-                {editingDoc ? '✏️ 문서 정보 수정' : '📤 신규 사내망 문서 업로드 / 등록'}
+                {editingDoc ? '✏️ 문서 및 대표 이미지 수정' : '📤 신규 문서 & 대표 이미지 업로드'}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -1333,48 +1192,101 @@ export default function IntranetPage() {
 
             <form onSubmit={handleSaveSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               
-              {/* File Upload Box */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--color-accent)', fontWeight: 600, marginBottom: '0.4rem' }}>
-                  📁 실제 첨부 파일 업로드 *
-                </label>
-                <div style={{
-                  border: '2px dashed var(--color-accent)',
-                  borderRadius: '10px',
-                  padding: '1.25rem',
-                  textAlign: 'center',
-                  background: 'rgba(0, 180, 216, 0.05)',
-                  position: 'relative'
-                }}>
-                  <input
-                    type="file"
-                    onChange={handleFileUpload}
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
-                  />
-                  {isUploading ? (
-                    <div style={{ color: 'var(--color-accent)', fontWeight: 600, fontSize: '0.9rem' }}>
-                      ⏳ 파일 업로드 진행 중...
-                    </div>
-                  ) : formFileName ? (
-                    <div>
-                      <div style={{ fontSize: '1.5rem', marginBottom: '0.3rem' }}>✅</div>
-                      <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.9rem' }}>{formFileName}</div>
-                      <div style={{ fontSize: '0.78rem', color: '#8D99AE', marginTop: '0.2rem' }}>
-                        용량: {formFileSize} | 클릭하여 다른 파일로 교체 가능
+              {/* Dual Upload Box: 1. Main Document File, 2. Representative Preview Image */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+                
+                {/* 1. Main Document File (PPTX, PDF, HWP, etc.) */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--color-accent)', fontWeight: 600, marginBottom: '0.4rem' }}>
+                    📄 1. 원본 문서 파일 (PPTX/PDF/HWP) *
+                  </label>
+                  <div style={{
+                    border: '2px dashed var(--color-accent)',
+                    borderRadius: '10px',
+                    padding: '1rem',
+                    textAlign: 'center',
+                    background: 'rgba(0, 180, 216, 0.05)',
+                    position: 'relative',
+                    minHeight: '110px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justify: 'center',
+                    alignItems: 'center'
+                  }}>
+                    <input
+                      type="file"
+                      onChange={handleDocFileUpload}
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+                    />
+                    {isUploadingDoc ? (
+                      <div style={{ color: 'var(--color-accent)', fontWeight: 600, fontSize: '0.82rem' }}>
+                        ⏳ 문서 업로드 중...
                       </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div style={{ fontSize: '2rem', marginBottom: '0.4rem' }}>📥</div>
-                      <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.9rem' }}>
-                        이곳을 클릭하거나 파일(PNG, JPG, PDF, XLSX, 등)을 드래그하세요
+                    ) : formFileName ? (
+                      <div>
+                        <div style={{ fontSize: '1.3rem', marginBottom: '0.2rem' }}>📄</div>
+                        <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.82rem', wordBreak: 'break-all' }}>{formFileName}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#8D99AE', marginTop: '0.15rem' }}>용량: {formFileSize}</div>
                       </div>
-                      <div style={{ fontSize: '0.78rem', color: '#8D99AE', marginTop: '0.25rem' }}>
-                        망구성도 이미지 또는 네트워크 관리 문서를 업로드할 수 있습니다.
+                    ) : (
+                      <div>
+                        <div style={{ fontSize: '1.4rem', marginBottom: '0.2rem' }}>📥</div>
+                        <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.82rem' }}>PPTX, PDF 문서 첨부</div>
+                        <div style={{ fontSize: '0.7rem', color: '#8D99AE', marginTop: '0.15rem' }}>클릭하여 파일 선택</div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
+
+                {/* 2. Representative Preview Image File (PNG, JPG, WebP) */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#FFB703', fontWeight: 600, marginBottom: '0.4rem' }}>
+                    🖼️ 2. 메인에 띄울 대표 이미지 (PNG/JPG)
+                  </label>
+                  <div style={{
+                    border: '2px dashed rgba(255, 183, 3, 0.6)',
+                    borderRadius: '10px',
+                    padding: '1rem',
+                    textAlign: 'center',
+                    background: 'rgba(255, 183, 3, 0.05)',
+                    position: 'relative',
+                    minHeight: '110px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justify: 'center',
+                    alignItems: 'center'
+                  }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImgFileUpload}
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+                    />
+                    {isUploadingImg ? (
+                      <div style={{ color: '#FFB703', fontWeight: 600, fontSize: '0.82rem' }}>
+                        ⏳ 이미지 업로드 중...
+                      </div>
+                    ) : formPreviewImgPath ? (
+                      <div>
+                        <div style={{ fontSize: '1.3rem', marginBottom: '0.2rem' }}>🖼️</div>
+                        <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.82rem' }}>대표 이미지 업로드됨</div>
+                        <div style={{ fontSize: '0.72rem', color: '#FFB703', marginTop: '0.15rem' }}>메인 화면에 직접 렌더링됩니다</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ fontSize: '1.4rem', marginBottom: '0.2rem' }}>🖼️</div>
+                        <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.82rem' }}>대표 이미지 첨부 (선택)</div>
+                        <div style={{ fontSize: '0.7rem', color: '#8D99AE', marginTop: '0.15rem' }}>PNG, JPG 캡처 이미지</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Upload Tip Banner */}
+              <div style={{ background: 'rgba(0, 180, 216, 0.08)', padding: '0.55rem 0.85rem', borderRadius: '6px', fontSize: '0.78rem', color: 'var(--color-accent)', lineHeight: '1.4' }}>
+                💡 <strong>안내:</strong> 메인 화면에는 새로 등록한 대표 이미지 1개만 띄워집니다. 이전 대표 이미지는 새로 교체되며, 원본 문서(PPTX/PDF)는 항상 <strong>[문서 히스토리]</strong>에 영구 보존되어 다운로드 가능합니다.
               </div>
 
               {/* Row 1: Code & Version */}
@@ -1408,7 +1320,7 @@ export default function IntranetPage() {
                 <input
                   type="text"
                   required
-                  placeholder="예: [본사/지사] 2026 통합 네트워크 망구성도"
+                  placeholder="예: [본사/지사] 2026 통합 네트워크 망구성도 및 토폴로지"
                   value={formTitle}
                   onChange={e => setFormTitle(e.target.value)}
                   style={{ width: '100%', padding: '0.55rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', fontSize: '0.88rem' }}
@@ -1492,17 +1404,17 @@ export default function IntranetPage() {
                     style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                   />
                   <label htmlFor="isPrimaryCheck" style={{ fontSize: '0.82rem', color: '#fff', cursor: 'pointer', fontWeight: 500 }}>
-                    📌 업로드 후 이 문서를 사내 대표 망구성도로 설정
+                    📌 업로드 후 이 이미지를 사내 대표 망구성도로 메인에 노출
                   </label>
                 </div>
               )}
 
               {/* Row 6: Description */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: '#8D99AE', marginBottom: '0.3rem' }}>상세 설명 및 메모</label>
+                <label style={{ display: 'block', fontSize: '0.8rem', color: '#8D99AE', marginBottom: '0.3rem' }}>상세 설명 및 특이사항</label>
                 <textarea
                   rows={3}
-                  placeholder="네트워크 변경 사항, 백본 스위치 구조, DMZ 구역 설명 등을 기재하세요."
+                  placeholder="네트워크 구성 변경 사항, 백본 스위치 구조, DMZ 구역 설명 등을 기재하세요."
                   value={formDescription}
                   onChange={e => setFormDescription(e.target.value)}
                   style={{ width: '100%', padding: '0.55rem', background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: '6px', color: '#fff', fontSize: '0.88rem', resize: 'vertical' }}
@@ -1521,7 +1433,7 @@ export default function IntranetPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploading}
+                  disabled={isUploadingDoc || isUploadingImg}
                   className="btn btn-accent"
                   style={{ padding: '0.55rem 1.4rem', fontWeight: 600 }}
                 >

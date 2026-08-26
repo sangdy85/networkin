@@ -110,6 +110,7 @@ db.exec(`
     file_name TEXT NOT NULL,
     file_path TEXT,
     file_size TEXT,
+    preview_img_path TEXT,
     is_primary INTEGER DEFAULT 0,
     description TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -228,10 +229,14 @@ if (userCount === 0) {
 try {
   const columns = db.prepare("PRAGMA table_info(intranet_docs)").all();
   const hasFilePath = columns.some(c => c.name === 'file_path');
+  const hasPreviewImgPath = columns.some(c => c.name === 'preview_img_path');
   const hasIsPrimary = columns.some(c => c.name === 'is_primary');
 
   if (!hasFilePath) {
     db.exec("ALTER TABLE intranet_docs ADD COLUMN file_path TEXT");
+  }
+  if (!hasPreviewImgPath) {
+    db.exec("ALTER TABLE intranet_docs ADD COLUMN preview_img_path TEXT");
   }
   if (!hasIsPrimary) {
     db.exec("ALTER TABLE intranet_docs ADD COLUMN is_primary INTEGER DEFAULT 0");
