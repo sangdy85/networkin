@@ -8,6 +8,7 @@ const INITIAL_POSTS = [];
 export default function BoardPage() {
   const { currentUser } = useAuth();
 
+  const [posts, setPosts] = useState(INITIAL_POSTS);
   const [activeTab, setActiveTab] = useState('notice'); // 'notice' | 'free'
   const [selectedPost, setSelectedPost] = useState(null);
   const [isWriting, setIsWriting] = useState(false);
@@ -21,89 +22,107 @@ export default function BoardPage() {
   // Comment State
   const [commentInput, setCommentInput] = useState('');
 
-  // Posts State
-  const [posts, setPosts] = useState(INITIAL_POSTS);
-
-  useEffect(() => {
-    setPosts([]);
-  }, []);
-
-  const savePosts = (newPosts) => {
-    setPosts(newPosts);
-    localStorage.setItem('networkin_board_posts', JSON.stringify(newPosts));
+  // Fetch posts from real SQLite DB
+  const fetchPostsFromAPI = async () => {
+    try {
+      const res = await fetch('/api/board');
+      if (res.ok) {
+        const data = await res.json();
+        setPosts(data || []);
+      }
+    } catch (e) {
+      console.error('Fetch board posts error', e);
+    }
   };
 
-  // Click Post -> Increase View Count & Open Reader Modal
+  useEffect(() => {
+    fetchPostsFromAPI();
+  }, []);
+
+  // Click Post -> Open Reader Modal
   const handleOpenPost = (post) => {
-    const updated = posts.map(p => {
-      if (p.id === post.id) return { ...p, views: p.views + 1 };
-      return p;
-    });
-    savePosts(updated);
-    setSelectedPost({ ...post, views: post.views + 1 });
+    setSelectedPost(post);
   };
 
   // Submit New Post
-  const handleWriteSubmit = (e) => {
+  const handleWriteSubmit = async (e) => {
     e.preventDefault();
     if (!newTitle.trim() || !newContent.trim()) {
       alert('제목과 내용을 모두 입력해 주세요.');
       return;
     }
 
-    const newPost = {
-      id: Date.now(),
+    const newPostData = {
       category: newCategory,
-      isPinned: false,
       title: newTitle.trim(),
-      author: currentUser?.name || currentUser?.id || '이강욱 팀장',
+      author: currentUser?.name || currentUser?.id || '작성자',
       authorId: currentUser?.id || 'netadmin',
-      date: new Date().toISOString().split('T')[0],
-      views: 1,
-      comments: [],
       content: newContent.trim()
     };
 
-    const updated = [newPost, ...posts];
-    savePosts(updated);
+    try {
+      const res = await fetch('/api/board', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPostData)
+      });
 
-    setIsWriting(false);
-    setNewTitle('');
-    setNewContent('');
-    setActiveTab(newCategory);
-    alert('게시글이 성공적으로 등록되었습니다.');
+      const data = await res.json();
+      if (res.ok) {
+        alert('게시글이 성공적으로 등록되었습니다.');
+        setIsWriting(false);
+        setNewTitle('');
+        setNewContent('');
+        setActiveTab(newCategory);
+        fetchPostsFromAPI();
+      } else {
+        alert(`게시글 등록 실패: ${data.error}`);
+      }
+    } catch (err) {
+      alert(`게시글 등록 오류: ${err.message}`);
+    }
   };
 
   // Submit Comment
-  const handleCommentSubmit = (e) => {
+  const handleCommentSubmit = async (e) => {
     e.preventDefault();
     if (!commentInput.trim() || !selectedPost) return;
 
-    const newComment = {
-      id: Date.now(),
-      author: currentUser?.name || currentUser?.id || '임직원',
-      text: commentInput.trim(),
-      date: '방금 전'
-    };
+    try {
+      const res = await fetch('/api/board', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'comment',
+          postId: selectedPost.id,
+          author: currentUser?.name || currentUser?.id || '임직원',
+          text: commentInput.trim()
+        })
+      });
 
-    const updatedPosts = posts.map(p => {
-      if (p.id === selectedPost.id) {
-        return { ...p, comments: [...p.comments, newComment] };
+      if (res.ok) {
+        const updatedComments = [...(selectedPost.comments || []), { id: Date.now(), author: currentUser?.name || '임직원', text: commentInput.trim(), date: '방금 전' }];
+        setSelectedPost({ ...selectedPost, comments: updatedComments });
+        setCommentInput('');
+        fetchPostsFromAPI();
       }
-      return p;
-    });
-
-    savePosts(updatedPosts);
-    setSelectedPost({ ...selectedPost, comments: [...selectedPost.comments, newComment] });
-    setCommentInput('');
+    } catch (err) {
+      console.error('Comment submit error', err);
+    }
   };
 
   // Delete Post
-  const handleDeletePost = (id) => {
+  const handleDeletePost = async (id) => {
     if (confirm('이 게시글을 삭제하시겠습니까?')) {
-      const updated = posts.filter(p => p.id !== id);
-      savePosts(updated);
-      setSelectedPost(null);
+      try {
+        const res = await fetch(`/api/board?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (res.ok) {
+          setSelectedPost(null);
+          fetchPostsFromAPI();
+        }
+      } catch (err) {
+        console.error('Delete post error', err);
+      }
     }
   };
 

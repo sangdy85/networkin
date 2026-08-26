@@ -104,15 +104,17 @@ export default function DocumentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(docData)
       });
+      const data = await res.json();
       if (res.ok) {
         alert(editingDoc ? '문서 정보가 수정되었습니다.' : '새로운 문서가 업로드/등록되었습니다.');
+        setIsModalOpen(false);
         fetchDocsFromAPI();
+      } else {
+        alert(`문서 등록 실패: ${data.error || '오류가 발생했습니다.'}`);
       }
     } catch (err) {
-      console.error('Doc save error', err);
+      alert(`문서 등록 오류: ${err.message}`);
     }
-
-    setIsModalOpen(false);
   };
 
   // Simulated File Download

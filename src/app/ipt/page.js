@@ -138,15 +138,17 @@ export default function IPTPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(itemData)
       });
+      const data = await res.json();
       if (res.ok) {
-        await fetchItemsFromAPI();
         alert(editingItem ? 'IPT 작업 정보가 수정되었습니다.' : '신규 IPT 작업이 등록되었습니다.');
+        setIsModalOpen(false);
+        await fetchItemsFromAPI();
+      } else {
+        alert(`저장 실패: ${data.error || '오류가 발생했습니다.'}`);
       }
     } catch (e) {
-      console.error('Save error', e);
+      alert(`저장 오류: ${e.message}`);
     }
-
-    setIsModalOpen(false);
   };
 
   // Delete

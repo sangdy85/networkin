@@ -195,15 +195,17 @@ export default function ProjectsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(projData)
       });
+      const data = await res.json();
       if (res.ok) {
         alert(editingProject ? `[${projData.name}] 프로젝트 정보가 수정되었습니다.` : `[${projData.name}] 새로운 프로젝트가 등록되었습니다.`);
+        setIsModalOpen(false);
         fetchProjectsFromAPI();
+      } else {
+        alert(`프로젝트 저장 실패: ${data.error || '오류가 발생했습니다.'}`);
       }
     } catch (err) {
-      console.error('Project save error', err);
+      alert(`프로젝트 저장 오류: ${err.message}`);
     }
-
-    setIsModalOpen(false);
   };
 
   // Delete Project

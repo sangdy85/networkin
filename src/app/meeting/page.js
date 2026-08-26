@@ -177,15 +177,17 @@ export default function MeetingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(itemData)
       });
+      const data = await res.json();
       if (res.ok) {
         alert(editingItem ? '회의/컨설팅 정보가 수정되었습니다.' : '신규 회의/컨설팅이 등록되었습니다.');
+        setIsModalOpen(false);
         fetchItemsFromAPI();
+      } else {
+        alert(`저장 실패: ${data.error || '오류가 발생했습니다.'}`);
       }
     } catch (err) {
-      console.error('Meeting save error', err);
+      alert(`저장 오류: ${err.message}`);
     }
-
-    setIsModalOpen(false);
   };
 
   // Delete

@@ -29,14 +29,22 @@ export default function InventoryPage() {
   const [outboundSite, setOutboundSite] = useState('');
   const [outboundWorker, setOutboundWorker] = useState('김철수 과장');
 
-  useEffect(() => {
-    setInventory([]);
-  }, []);
-
-  const saveInventory = (newInv) => {
-    setInventory(newInv);
-    localStorage.setItem('networkin_inventory', JSON.stringify(newInv));
+  // Fetch inventory from real SQLite DB
+  const fetchInventoryFromAPI = async () => {
+    try {
+      const res = await fetch('/api/inventory');
+      if (res.ok) {
+        const data = await res.json();
+        setInventory(data || []);
+      }
+    } catch (e) {
+      console.error('Fetch inventory error', e);
+    }
   };
+
+  useEffect(() => {
+    fetchInventoryFromAPI();
+  }, []);
 
   // Open Inbound Modal
   const handleOpenCreateModal = () => {
@@ -57,10 +65,10 @@ export default function InventoryPage() {
     setFormName(item.name);
     setFormCategory(item.category);
     setFormStock(item.stock);
-    setFormMinStock(item.minStock);
+    setFormMinStock(item.minStock || 5);
     setFormUnit(item.unit);
     setFormLocation(item.location);
-    setFormPrice(item.price);
+    setFormPrice(item.unitPrice || '');
     setIsModalOpen(true);
   };
 
@@ -74,7 +82,7 @@ export default function InventoryPage() {
   };
 
   // Submit Inbound (Create / Edit)
-  const handleSaveSubmit = (e) => {
+  const handleSaveSubmit = async (e) => {
     e.preventDefault();
     if (!formName.trim()) {
       alert('자재/장비명을 입력해 주세요.');
@@ -82,38 +90,40 @@ export default function InventoryPage() {
     }
 
     const stockNum = parseInt(formStock, 10) || 0;
-    const minStockNum = parseInt(formMinStock, 10) || 0;
-    const isShortage = stockNum <= minStockNum;
 
     const itemData = {
-      id: editingItem ? editingItem.id : Date.now(),
-      code: editingItem ? editingItem.code : `INV-${formCategory.slice(0, 3).toUpperCase()}-${String(inventory.length + 10).padStart(3, '0')}`,
+      id: editingItem ? editingItem.id : undefined,
       name: formName.trim(),
       category: formCategory,
       stock: stockNum,
-      minStock: minStockNum,
       unit: formUnit,
       location: formLocation.trim() || '본사 자재실',
-      price: formPrice.trim() || '미정',
-      status: isShortage ? '재입고필요' : '적정',
-      badgeClass: isShortage ? 'badge-urgent' : 'badge-active'
+      unitPrice: formPrice.trim() || 0
     };
 
-    if (editingItem) {
-      const updated = inventory.map(item => item.id === editingItem.id ? itemData : item);
-      saveInventory(updated);
-      alert('자재/장비 수량 및 정보가 수정되었습니다.');
-    } else {
-      const updated = [itemData, ...inventory];
-      saveInventory(updated);
-      alert('새로운 자재/장비가 입고 등록되었습니다.');
-    }
+    try {
+      const method = editingItem ? 'PUT' : 'POST';
+      const res = await fetch('/api/inventory', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemData)
+      });
 
-    setIsModalOpen(false);
+      const data = await res.json();
+      if (res.ok) {
+        alert(editingItem ? '자재/장비 수량 및 정보가 수정되었습니다.' : '새로운 자재/장비가 입고 등록되었습니다.');
+        setIsModalOpen(false);
+        fetchInventoryFromAPI();
+      } else {
+        alert(`저장 실패: ${data.error}`);
+      }
+    } catch (err) {
+      alert(`저장 오류: ${err.message}`);
+    }
   };
 
   // Process Outbound Dispatch
-  const handleOutboundSubmit = (e) => {
+  const handleOutboundSubmit = async (e) => {
     e.preventDefault();
     if (!selectedOutboundItem) return;
 
@@ -124,30 +134,38 @@ export default function InventoryPage() {
     }
 
     const newStock = selectedOutboundItem.stock - qty;
-    const isShortage = newStock <= selectedOutboundItem.minStock;
 
-    const updated = inventory.map(item => {
-      if (item.id === selectedOutboundItem.id) {
-        return {
-          ...item,
-          stock: newStock,
-          status: isShortage ? '재입고필요' : '적정',
-          badgeClass: isShortage ? 'badge-urgent' : 'badge-active'
-        };
+    try {
+      const res = await fetch('/api/inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...selectedOutboundItem,
+          stock: newStock
+        })
+      });
+
+      if (res.ok) {
+        alert(`[${selectedOutboundItem.name}] ${qty}${selectedOutboundItem.unit}가 ${outboundSite}로 출고 처리되었습니다.`);
+        setIsOutboundOpen(false);
+        fetchInventoryFromAPI();
       }
-      return item;
-    });
-
-    saveInventory(updated);
-    alert(`[${selectedOutboundItem.name}] ${qty}${selectedOutboundItem.unit}가 ${outboundSite}로 출고 처리되었습니다.`);
-    setIsOutboundOpen(false);
+    } catch (err) {
+      console.error('Outbound submit error', err);
+    }
   };
 
   // Delete Item
-  const handleDeleteItem = (id) => {
+  const handleDeleteItem = async (id) => {
     if (confirm('이 자재/장비 항목을 완전히 삭제하시겠습니까?')) {
-      const updated = inventory.filter(item => item.id !== id);
-      saveInventory(updated);
+      try {
+        const res = await fetch(`/api/inventory?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchInventoryFromAPI();
+        }
+      } catch (err) {
+        console.error('Delete inventory error', err);
+      }
     }
   };
 

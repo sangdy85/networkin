@@ -31,56 +31,22 @@ export default function MaintenancePage() {
   const [formResolutionNote, setFormResolutionNote] = useState('');
   const [formDate, setFormDate] = useState('2026-08-19');
 
-  useEffect(() => {
-    setTickets([]);
-  }, []);
-
-  // Sync Schedule Helper to register maintenance ticket in /schedule
-  const syncToSchedule = (ticketData) => {
+  // Fetch maintenance tickets from real SQLite DB
+  const fetchTicketsFromAPI = async () => {
     try {
-      const savedSchedules = localStorage.getItem('networkin_schedules_v3');
-      let currentSchedules = savedSchedules ? JSON.parse(savedSchedules) : [];
-
-      let primaryType = '네트워크';
-      let workType = '장애처리';
-      let color = '#E63946';
-
-      if (ticketData.category.includes('IPT')) {
-        primaryType = 'IPT';
-        workType = ticketData.category.includes('장애') ? '장애처리' : '유지보수';
-        color = ticketData.urgency === '긴급' ? '#D90429' : '#3B82F6';
-      } else {
-        primaryType = '네트워크';
-        workType = ticketData.category.includes('장애') ? '장애처리' : '유지보수';
-        color = ticketData.urgency === '긴급' ? '#E63946' : '#FFB703';
+      const res = await fetch('/api/maintenance');
+      if (res.ok) {
+        const data = await res.json();
+        setTickets(data || []);
       }
-
-      const scheduleId = `MAINT-SCHED-${ticketData.id}`;
-      const newScheduleItem = {
-        id: scheduleId,
-        date: ticketData.date || '2026-08-19',
-        time: '10:00 - 12:00',
-        title: `[유지보수/장애] ${ticketData.title}`,
-        type: primaryType,
-        workType: workType,
-        location: ticketData.site,
-        assignee: ticketData.engineer,
-        workers: ticketData.workers,
-        color: color
-      };
-
-      const filtered = currentSchedules.filter(s => s.id !== scheduleId);
-      const updatedSchedules = [newScheduleItem, ...filtered];
-      localStorage.setItem('networkin_schedules_v3', JSON.stringify(updatedSchedules));
-    } catch (err) {
-      console.error('Schedule sync error:', err);
+    } catch (e) {
+      console.error('Fetch maintenance tickets error', e);
     }
   };
 
-  const saveTickets = (newTickets) => {
-    setTickets(newTickets);
-    localStorage.setItem('networkin_maintenance', JSON.stringify(newTickets));
-  };
+  useEffect(() => {
+    fetchTicketsFromAPI();
+  }, []);
 
   // Open Create Modal
   const handleOpenCreateModal = () => {
@@ -91,9 +57,9 @@ export default function MaintenancePage() {
     setFormCategory('네트워크 장애');
     setFormUrgency('긴급');
     setFormStatus('접수');
-    setFormWorkers([currentUser?.name || currentUser?.id || '최현우 과장']);
+    setFormWorkers([currentUser?.name || currentUser?.id || '담당자']);
     setFormResolutionNote('');
-    setFormDate('2026-08-19');
+    setFormDate(new Date().toISOString().split('T')[0]);
     setIsModalOpen(true);
   };
 
@@ -102,83 +68,68 @@ export default function MaintenancePage() {
     setEditingTicket(tck);
     setFormSite(tck.site);
     setFormTitle(tck.title);
-    setFormIssue(tck.issue);
+    setFormIssue(tck.issue || '');
     setFormCategory(tck.category);
-    setFormUrgency(tck.urgency);
+    setFormUrgency(tck.priority || tck.urgency || '보통');
     setFormStatus(tck.status);
-    setFormWorkers(tck.workers || [tck.engineer]);
+    setFormWorkers(tck.workers || []);
     setFormResolutionNote(tck.resolutionNote || '');
-    setFormDate(tck.date || '2026-08-19');
+    setFormDate(tck.date || new Date().toISOString().split('T')[0]);
     setIsModalOpen(true);
   };
 
-  // Toggle Worker
-  const handleWorkerToggle = (wName) => {
-    if (formWorkers.includes(wName)) {
-      if (formWorkers.length === 1) return;
-      setFormWorkers(formWorkers.filter(w => w !== wName));
-    } else {
-      setFormWorkers([...formWorkers, wName]);
-    }
-  };
-
-  // Save Ticket with Schedule Auto Sync!
-  const handleSaveSubmit = (e) => {
+  // Save Ticket
+  const handleSaveSubmit = async (e) => {
     e.preventDefault();
     if (!formSite.trim() || !formTitle.trim()) {
       alert('사이트명과 장애 접수 제목을 입력해 주세요.');
       return;
     }
 
-    let badgeClass = 'badge-active';
-    if (formStatus === '처리완료') badgeClass = 'badge-complete';
-    if (formUrgency === '긴급' && formStatus !== '처리완료') badgeClass = 'badge-urgent';
-
     const ticketData = {
-      id: editingTicket ? editingTicket.id : `TCK-2026-${String(tickets.length + 82).padStart(3, '0')}`,
+      id: editingTicket ? editingTicket.id : undefined,
       site: formSite.trim(),
       title: formTitle.trim(),
-      issue: formIssue.trim(),
       category: formCategory,
-      urgency: formUrgency,
+      priority: formUrgency,
       status: formStatus,
-      engineer: formWorkers[0] || '담당자',
       workers: formWorkers,
-      date: formDate,
-      time: editingTicket ? editingTicket.time : `${formDate} 10:15`,
-      badgeClass,
-      resolutionNote: formResolutionNote.trim()
+      resolutionNote: formResolutionNote.trim(),
+      date: formDate
     };
 
-    if (editingTicket) {
-      const updated = tickets.map(t => t.id === editingTicket.id ? ticketData : t);
-      saveTickets(updated);
-      syncToSchedule(ticketData);
-      alert('장애 처리 티켓 정보가 수정되었으며, [일정 관리]에도 자동 동기화되었습니다.');
-    } else {
-      const updated = [ticketData, ...tickets];
-      saveTickets(updated);
-      syncToSchedule(ticketData);
-      alert('긴급 장애/유지보수 티켓이 접수되었으며, [일정 관리] 캘린더에 자동 동기화되었습니다!');
-    }
+    try {
+      const method = editingTicket ? 'PUT' : 'POST';
+      const res = await fetch('/api/maintenance', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ticketData)
+      });
 
-    setIsModalOpen(false);
+      const data = await res.json();
+      if (res.ok) {
+        alert(editingTicket ? '장애 처리 티켓 정보가 수정되었습니다.' : '긴급 장애/유지보수 티켓이 접수되었습니다.');
+        setIsModalOpen(false);
+        fetchTicketsFromAPI();
+      } else {
+        alert(`티켓 저장 실패: ${data.error}`);
+      }
+    } catch (err) {
+      alert(`티켓 저장 오류: ${err.message}`);
+    }
   };
 
   // Delete Ticket
-  const handleDeleteTicket = (id) => {
-    if (confirm('이 유지보수/장애 티켓을 삭제하시겠습니까? (연동된 일정도 함께 정리됩니다)')) {
-      const updated = tickets.filter(t => t.id !== id);
-      saveTickets(updated);
-
+  const handleDeleteTicket = async (id) => {
+    if (confirm('이 유지보수/장애 티켓을 삭제하시겠습니까?')) {
       try {
-        const savedSchedules = localStorage.getItem('networkin_schedules_v3');
-        if (savedSchedules) {
-          const currentSchedules = JSON.parse(savedSchedules);
-          const filtered = currentSchedules.filter(s => s.id !== `MAINT-SCHED-${id}`);
-          localStorage.setItem('networkin_schedules_v3', JSON.stringify(filtered));
+        const res = await fetch(`/api/maintenance?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchTicketsFromAPI();
         }
-      } catch (err) {}
+      } catch (err) {
+        console.error('Delete ticket error', err);
+      }
     }
   };
 
@@ -190,13 +141,13 @@ export default function MaintenancePage() {
       ? t.status !== '처리완료' 
       : t.status === activeTab;
 
-    const urgencyMatch = urgencyFilter === 'all' || t.urgency === urgencyFilter;
+    const urgencyMatch = urgencyFilter === 'all' || (t.priority || t.urgency) === urgencyFilter;
 
     const searchMatch = !searchQuery.trim() ||
-      t.site.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.engineer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.id.toLowerCase().includes(searchQuery.toLowerCase());
+      (t.site || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.engineer || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.id || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     return statusMatch && urgencyMatch && searchMatch;
   });

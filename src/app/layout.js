@@ -96,6 +96,14 @@ function SidebarNav() {
             </Link>
           </li>
 
+          {/* 3-1. 사내망 관리 */}
+          <li className={`sidebar-item ${pathname === '/intranet' ? 'active' : ''}`}>
+            <Link href="/intranet">
+              <span style={{ fontSize: '1.2rem' }}>🖥️</span>
+              <span>사내망 관리</span>
+            </Link>
+          </li>
+
           {/* 4. IPT */}
           <li className={`sidebar-item ${pathname === '/ipt' ? 'active' : ''}`}>
             <Link href="/ipt">
