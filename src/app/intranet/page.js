@@ -31,6 +31,7 @@ export default function IntranetPage() {
   const [editingDoc, setEditingDoc] = useState(null);
   const [viewDoc, setViewDoc] = useState(null);
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [imgLoadError, setImgLoadError] = useState(false);
 
   // Form State
   const [formCode, setFormCode] = useState('');
@@ -59,6 +60,7 @@ export default function IntranetPage() {
   }, []);
 
   const fetchDocs = async () => {
+    setImgLoadError(false);
     try {
       const res = await fetch('/api/intranet');
       if (res.ok) {
@@ -423,7 +425,7 @@ export default function IntranetPage() {
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {primaryNetworkDiagram.filePath && (
                   <a
-                    href={primaryNetworkDiagram.filePath}
+                    href={`/api/intranet/download?id=${primaryNetworkDiagram.id}`}
                     download={primaryNetworkDiagram.fileName}
                     className="btn btn-accent"
                     style={{ padding: '0.45rem 0.95rem', fontSize: '0.82rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}
@@ -463,12 +465,13 @@ export default function IntranetPage() {
               overflow: 'hidden',
               position: 'relative'
             }}>
-              {primaryDisplayImage ? (
+              {primaryDisplayImage && !imgLoadError ? (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
                     <img
                       src={primaryDisplayImage}
                       alt={primaryNetworkDiagram.title}
+                      onError={() => setImgLoadError(true)}
                       onClick={() => setLightboxImage(primaryDisplayImage)}
                       style={{
                         maxWidth: '100%',
@@ -528,7 +531,7 @@ export default function IntranetPage() {
                     </button>
                     {primaryNetworkDiagram.filePath && (
                       <a
-                        href={primaryNetworkDiagram.filePath}
+                        href={`/api/intranet/download?id=${primaryNetworkDiagram.id}`}
                         download={primaryNetworkDiagram.fileName}
                         className="btn btn-accent"
                         style={{ padding: '0.55rem 1.4rem', fontSize: '0.88rem', textDecoration: 'none' }}
@@ -793,7 +796,7 @@ export default function IntranetPage() {
 
                   {doc.filePath ? (
                     <a
-                      href={doc.filePath}
+                      href={`/api/intranet/download?id=${doc.id}`}
                       download={doc.fileName}
                       className="btn btn-secondary"
                       style={{ padding: '0.35rem 0.65rem', fontSize: '0.76rem', color: 'var(--color-accent)', borderColor: 'rgba(0,180,216,0.3)', textDecoration: 'none' }}
@@ -876,7 +879,7 @@ export default function IntranetPage() {
                     <div style={{ display: 'inline-flex', gap: '0.3rem' }}>
                       <button onClick={() => setViewDoc(doc)} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>상세</button>
                       {doc.filePath && (
-                        <a href={doc.filePath} download={doc.fileName} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: 'var(--color-accent)', textDecoration: 'none' }}>다운로드</a>
+                        <a href={`/api/intranet/download?id=${doc.id}`} download={doc.fileName} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: 'var(--color-accent)', textDecoration: 'none' }}>다운로드</a>
                       )}
                       <button onClick={() => handleOpenEditModal(doc)} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>수정</button>
                       <button onClick={() => handleDeleteDoc(doc.id)} className="btn btn-secondary" style={{ padding: '0.25rem 0.4rem', fontSize: '0.75rem', color: '#E63946' }}>🗑️</button>
@@ -1021,7 +1024,7 @@ export default function IntranetPage() {
                 )}
                 {viewDoc.filePath && (
                   <a
-                    href={viewDoc.filePath}
+                    href={`/api/intranet/download?id=${viewDoc.id}`}
                     download={viewDoc.fileName}
                     className="btn btn-accent"
                     style={{ fontSize: '0.85rem', textDecoration: 'none' }}
@@ -1130,7 +1133,7 @@ export default function IntranetPage() {
                       )}
                       {hDoc.filePath && (
                         <a
-                          href={hDoc.filePath}
+                          href={`/api/intranet/download?id=${hDoc.id}`}
                           download={hDoc.fileName}
                           className="btn btn-accent"
                           style={{ fontSize: '0.78rem', padding: '0.35rem 0.65rem', textDecoration: 'none' }}

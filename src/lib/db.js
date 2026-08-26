@@ -241,6 +241,20 @@ try {
   if (!hasIsPrimary) {
     db.exec("ALTER TABLE intranet_docs ADD COLUMN is_primary INTEGER DEFAULT 0");
   }
+
+  // Clean up any preview_img_path records that accidentally store non-image file paths
+  db.exec(`
+    UPDATE intranet_docs
+    SET preview_img_path = ''
+    WHERE preview_img_path NOT LIKE '%.png'
+      AND preview_img_path NOT LIKE '%.jpg'
+      AND preview_img_path NOT LIKE '%.jpeg'
+      AND preview_img_path NOT LIKE '%.webp'
+      AND preview_img_path NOT LIKE '%.gif'
+      AND preview_img_path NOT LIKE '%.svg'
+      AND preview_img_path IS NOT NULL
+      AND preview_img_path != ''
+  `);
 } catch (e) {
   console.warn('Migration error for intranet_docs:', e.message);
 }
