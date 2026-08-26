@@ -13,20 +13,36 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState('전체');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modal & Drawer State
+  // Modal & Detail Drawer State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [viewClient, setViewClient] = useState(null);
 
-  // Form State
+  // Detail Modal Tab & Sub-state
+  const [activeDetailTab, setActiveDetailTab] = useState('info'); // 'info' | 'history' | 'network'
+  const [clientHistory, setClientHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Network Config Edit State inside Detail Tab 3
+  const [netConfigForm, setNetConfigForm] = useState({
+    isp: '',
+    ipSubnet: '',
+    gateway: '',
+    dnsPrimary: '',
+    dnsSecondary: '',
+    equipments: [],
+    notes: ''
+  });
+  const [newEquipType, setNewEquipType] = useState('UTM 방화벽');
+  const [newEquipModel, setNewEquipModel] = useState('');
+  const [newEquipLocation, setNewEquipLocation] = useState('');
+
+  // Form State for Client Register/Edit
   const [formName, setFormName] = useState('');
   const [formIndustry, setFormIndustry] = useState('');
-  
-  // Dynamic Multiple Client Contacts
   const [formContacts, setFormContacts] = useState([
     { name: '', phone: '', email: '', duty: '대표 담당자' }
   ]);
-
   const [formAddress, setFormAddress] = useState('');
   const [formContractStatus, setFormContractStatus] = useState('유지보수 계약중');
   const [formContractDate, setFormContractDate] = useState('');
@@ -62,6 +78,89 @@ export default function ClientsPage() {
     } catch (e) {
       console.warn('Fetch users error in clients page', e);
     }
+  };
+
+  // Fetch Work History for Selected Client
+  const fetchClientHistory = async (clientName) => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/clients/history?clientName=${encodeURIComponent(clientName)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setClientHistory(data || []);
+      }
+    } catch (e) {
+      console.error('Fetch history error', e);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // Open Client Detail Modal View
+  const handleOpenDetailModal = (cli) => {
+    setViewClient(cli);
+    setActiveDetailTab('info');
+    fetchClientHistory(cli.name);
+
+    // Initialize Network Config Form
+    const cfg = cli.network_config || {};
+    setNetConfigForm({
+      isp: cfg.isp || 'KT 전용회선 (1G)',
+      ipSubnet: cfg.ipSubnet || '192.168.10.0/24',
+      gateway: cfg.gateway || '192.168.10.1',
+      dnsPrimary: cfg.dnsPrimary || '168.126.63.1',
+      dnsSecondary: cfg.dnsSecondary || '168.126.63.2',
+      equipments: Array.isArray(cfg.equipments) ? cfg.equipments : [],
+      notes: cfg.notes || ''
+    });
+  };
+
+  // Save Network Config in Detail Tab 3
+  const handleSaveNetworkConfig = async () => {
+    if (!viewClient) return;
+    const updatedClient = {
+      ...viewClient,
+      network_config: netConfigForm
+    };
+
+    try {
+      const res = await fetch('/api/clients', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedClient)
+      });
+
+      if (res.ok) {
+        alert('고객사 구성 정보 및 인프라 설정이 저장되었습니다!');
+        setViewClient(updatedClient);
+        fetchClientsFromAPI();
+      } else {
+        alert('구성 정보 저장 실패');
+      }
+    } catch (e) {
+      alert(`저장 중 오류: ${e.message}`);
+    }
+  };
+
+  // Add Equipment item
+  const handleAddEquipment = () => {
+    if (!newEquipModel.trim()) return;
+    setNetConfigForm({
+      ...netConfigForm,
+      equipments: [
+        ...netConfigForm.equipments,
+        { type: newEquipType, model: newEquipModel.trim(), location: newEquipLocation.trim() || '서버실' }
+      ]
+    });
+    setNewEquipModel('');
+    setNewEquipLocation('');
+  };
+
+  const handleRemoveEquipment = (index) => {
+    setNetConfigForm({
+      ...netConfigForm,
+      equipments: netConfigForm.equipments.filter((_, idx) => idx !== index)
+    });
   };
 
   // Registered Engineer user list (excluding master admin)
@@ -109,7 +208,6 @@ export default function ClientsPage() {
     setFormName(cli.name);
     setFormIndustry(cli.industry || '');
     
-    // Set contacts array or fallback
     if (Array.isArray(cli.contacts) && cli.contacts.length > 0) {
       setFormContacts(cli.contacts);
     } else if (cli.contact_name || cli.contact_phone || cli.contact_email) {
@@ -214,7 +312,7 @@ export default function ClientsPage() {
       <header className="portal-header" style={{ marginBottom: '1.2rem' }}>
         <div>
           <h1 className="portal-title">🏢 고객사 관리 센터 (Client Hub)</h1>
-          <p className="portal-subtitle">아인스텍 주요 고객사 인프라 계약 현황, 전담 엔지니어(정/부), 담당자 정보 대시보드</p>
+          <p className="portal-subtitle">아인스텍 주요 고객사 인프라 구성 정보, 작업 이력, 전담 엔지니어(정/부) 통합 관리</p>
         </div>
         <button onClick={handleOpenCreateModal} className="btn btn-accent" style={{ padding: '0.65rem 1.2rem', fontWeight: 600 }}>
           + 신규 고객사 등록
@@ -243,7 +341,6 @@ export default function ClientsPage() {
       <div className="panel" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         
         <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Contract Status Filter Dropdown */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ fontSize: '0.82rem', color: 'var(--color-accent)', fontWeight: 600 }}>계약 상태 필터:</span>
             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--color-accent)', color: '#fff', fontSize: '0.82rem', fontWeight: 600 }}>
@@ -261,13 +358,13 @@ export default function ClientsPage() {
             placeholder="고객사명, 코드, 업종, 엔지니어, 담당자 검색..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            style={{ padding: '0.45rem 0.85rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.82rem', width: '270px' }}
+            style={{ padding: '0.45rem 0.85rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.82rem', width: '280px' }}
           />
         </div>
 
       </div>
 
-      {/* Create / Edit Modal */}
+      {/* Register / Edit Modal */}
       {isModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
           <div className="panel" style={{ width: '100%', maxWidth: '680px', maxHeight: '92vh', overflowY: 'auto', padding: '1.5rem' }}>
@@ -463,74 +560,295 @@ export default function ClientsPage() {
         </div>
       )}
 
-      {/* Detail Viewer Drawer */}
+      {/* Comprehensive Client Detail & Management Center Modal (Opened on Click) */}
       {viewClient && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div className="panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '820px', maxHeight: '92vh', overflowY: 'auto', padding: '1.75rem', background: 'var(--bg-card)' }}>
+            
+            {/* Header section */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
-                  <span className="badge" style={{ background: 'var(--color-primary)', color: '#fff', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                  <span className="badge" style={{ background: 'var(--color-primary)', color: '#fff', fontSize: '0.78rem', fontFamily: 'monospace' }}>
                     {viewClient.code}
                   </span>
-                  <span className="badge" style={{ background: viewClient.contract_status === '유지보수 계약중' ? 'rgba(56,176,0,0.2)' : 'rgba(255,183,3,0.2)', color: viewClient.contract_status === '유지보수 계약중' ? '#38B000' : '#FFB703', fontSize: '0.75rem' }}>
-                    {viewClient.contract_status}
+                  <span className="badge" style={{ background: viewClient.contract_status === '유지보수 계약중' ? 'rgba(56,176,0,0.2)' : 'rgba(255,183,3,0.2)', color: viewClient.contract_status === '유지보수 계약중' ? '#38B000' : '#FFB703', fontSize: '0.78rem', fontWeight: 700 }}>
+                    ● {viewClient.contract_status}
                   </span>
+                  {viewClient.industry && (
+                    <span style={{ fontSize: '0.78rem', background: 'rgba(255,255,255,0.08)', color: '#ccc', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                      {viewClient.industry}
+                    </span>
+                  )}
                 </div>
-                <h2 className="panel-title" style={{ fontSize: '1.3rem', color: '#fff' }}>{viewClient.name}</h2>
-                <div style={{ fontSize: '0.85rem', color: '#aaa', marginTop: '0.2rem' }}>업종: <strong style={{ color: '#fff' }}>{viewClient.industry || '미지정'}</strong></div>
+                <h2 className="panel-title" style={{ fontSize: '1.4rem', color: '#fff', margin: 0 }}>{viewClient.name}</h2>
+                <div style={{ fontSize: '0.82rem', color: '#aaa', marginTop: '0.3rem' }}>📍 {viewClient.address || '주소 미입력'}</div>
               </div>
-              <button onClick={() => setViewClient(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+              <button onClick={() => setViewClient(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.4rem', cursor: 'pointer' }}>✕</button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem' }}>
-              
-              {/* Engineers info */}
-              <div style={{ background: 'rgba(0,180,216,0.08)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(0,180,216,0.25)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-                <div>
-                  <span style={{ color: '#00B4D8', fontWeight: 700, fontSize: '0.8rem' }}>👤 전담 엔지니어 (정):</span>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', marginTop: '0.2rem' }}>{viewClient.engineer_primary || '미지정'}</div>
-                </div>
-                <div>
-                  <span style={{ color: '#aaa', fontWeight: 600, fontSize: '0.8rem' }}>👤 전담 엔지니어 (부):</span>
-                  <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#ddd', marginTop: '0.2rem' }}>{viewClient.engineer_secondary || '미지정'}</div>
-                </div>
-              </div>
+            {/* Interactive Tab Selector Header */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+              <button
+                onClick={() => setActiveDetailTab('info')}
+                className={`btn ${activeDetailTab === 'info' ? 'btn-accent' : 'btn-secondary'}`}
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', fontWeight: 600 }}
+              >
+                📋 고객사 기본 정보 & 담당자
+              </button>
+              <button
+                onClick={() => setActiveDetailTab('history')}
+                className={`btn ${activeDetailTab === 'history' ? 'btn-accent' : 'btn-secondary'}`}
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', fontWeight: 600 }}
+              >
+                🛠️ 작업 및 장애 처리 이력 ({clientHistory.length}건)
+              </button>
+              <button
+                onClick={() => setActiveDetailTab('network')}
+                className={`btn ${activeDetailTab === 'network' ? 'btn-accent' : 'btn-secondary'}`}
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', fontWeight: 600 }}
+              >
+                🌐 고객사 구성 정보 & 장비 현황
+              </button>
+            </div>
 
-              {/* Contacts info list */}
+            {/* TAB 1: Basic Profile & Contacts */}
+            {activeDetailTab === 'info' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem' }}>
+                
+                {/* Engineers info */}
+                <div style={{ background: 'rgba(0,180,216,0.08)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(0,180,216,0.25)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                  <div>
+                    <span style={{ color: '#00B4D8', fontWeight: 700, fontSize: '0.8rem' }}>👤 전담 엔지니어 (정):</span>
+                    <div style={{ fontSize: '0.98rem', fontWeight: 700, color: '#fff', marginTop: '0.2rem' }}>{viewClient.engineer_primary || '미지정'}</div>
+                  </div>
+                  <div>
+                    <span style={{ color: '#aaa', fontWeight: 600, fontSize: '0.8rem' }}>👤 전담 엔지니어 (부):</span>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: '#ddd', marginTop: '0.2rem' }}>{viewClient.engineer_secondary || '미지정'}</div>
+                  </div>
+                </div>
+
+                {/* Contacts info list */}
+                <div>
+                  <span style={{ color: 'var(--color-accent)', fontWeight: 700, display: 'block', marginBottom: '0.5rem' }}>👥 고객사 담당자 목록 ({Array.isArray(viewClient.contacts) ? viewClient.contacts.length : 1}명):</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {(Array.isArray(viewClient.contacts) && viewClient.contacts.length > 0 ? viewClient.contacts : [{ name: viewClient.contact_name, phone: viewClient.contact_phone, email: viewClient.contact_email }]).map((c, i) => (
+                      <div key={i} style={{ background: 'rgba(255,255,255,0.03)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div>
+                          <strong style={{ color: '#fff', fontSize: '0.92rem' }}>{c.name || '담당자'}</strong>
+                          {c.duty && <span style={{ fontSize: '0.78rem', color: '#aaa', marginLeft: '0.5rem' }}>({c.duty})</span>}
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#aaa', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                          {c.phone && <a href={`tel:${c.phone}`} style={{ color: '#00B4D8', textDecoration: 'none' }}>📞 {c.phone}</a>}
+                          {c.email && <a href={`mailto:${c.email}`} style={{ color: '#00B4D8', textDecoration: 'none' }}>✉️ {c.email}</a>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '10px' }}>
+                  <div><span style={{ color: '#aaa' }}>계약 등록일:</span> <strong>{viewClient.contract_date || '-'}</strong></div>
+                  <div><span style={{ color: '#aaa' }}>업종 분류:</span> <strong>{viewClient.industry || '미지정'}</strong></div>
+                </div>
+
+                {viewClient.memo && (
+                  <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid var(--color-accent)' }}>
+                    <span style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>📌 비고 및 특이사항:</span>
+                    <p style={{ color: '#ddd', fontSize: '0.88rem', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{viewClient.memo}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: Work & Service History */}
+            {activeDetailTab === 'history' && (
               <div>
-                <span style={{ color: 'var(--color-accent)', fontWeight: 700, display: 'block', marginBottom: '0.4rem' }}>👥 고객사 담당자 목록:</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {(Array.isArray(viewClient.contacts) && viewClient.contacts.length > 0 ? viewClient.contacts : [{ name: viewClient.contact_name, phone: viewClient.contact_phone, email: viewClient.contact_email }]).map((c, i) => (
-                    <div key={i} style={{ background: 'rgba(255,255,255,0.03)', padding: '0.65rem 0.85rem', borderRadius: '6px', border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div>
-                        <strong style={{ color: '#fff', fontSize: '0.88rem' }}>{c.name || '담당자'}</strong>
-                        {c.duty && <span style={{ fontSize: '0.75rem', color: '#aaa', marginLeft: '0.4rem' }}>({c.duty})</span>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#aaa' }}>
+                    <strong>{viewClient.name}</strong> 고객사의 유지보수, IPT, 네트워크, 시공, 회의 집계 이력 목록
+                  </span>
+                  <button onClick={() => fetchClientHistory(viewClient.name)} className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}>
+                    🔄 새로고침
+                  </button>
+                </div>
+
+                {historyLoading ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#aaa' }}>작업 처리 이력을 불러오는 중...</div>
+                ) : clientHistory.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', maxHeight: '55vh', overflowY: 'auto' }}>
+                    {clientHistory.map((h) => (
+                      <div key={h.id} style={{ background: 'rgba(255,255,255,0.03)', padding: '0.85rem 1rem', borderRadius: '8px', border: `1px solid ${h.badgeColor || 'var(--border-color)'}`, borderLeft: `4px solid ${h.badgeColor || 'var(--color-accent)'}` }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span className="badge" style={{ background: h.badgeColor || 'var(--color-primary)', color: '#fff', fontSize: '0.75rem', fontWeight: 700 }}>
+                              {h.category}
+                            </span>
+                            <span style={{ fontSize: '0.78rem', color: '#aaa' }}>📅 {h.date}</span>
+                          </div>
+                          <span style={{ fontSize: '0.78rem', background: 'rgba(255,255,255,0.08)', padding: '0.15rem 0.4rem', borderRadius: '4px', color: '#fff', fontWeight: 600 }}>
+                            {h.status}
+                          </span>
+                        </div>
+                        <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.92rem', marginBottom: '0.25rem' }}>{h.title}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: '#aaa' }}>
+                          <div>{h.content}</div>
+                          <div style={{ display: 'flex', gap: '0.2rem' }}>
+                            {(h.workers || []).map((w, idx) => (
+                              <span key={idx} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.75rem' }}>
+                                👤 {w}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.82rem', color: '#aaa', display: 'flex', gap: '0.8rem' }}>
-                        {c.phone && <span>📞 {c.phone}</span>}
-                        {c.email && <span>✉️ {c.email}</span>}
-                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ padding: '3rem 1rem', textAlign: 'center', color: '#aaa', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                    등록된 작업 이력이 없습니다.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: Client Network Config & Infrastructure Setup */}
+            {activeDetailTab === 'network' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.88rem' }}>
+                
+                {/* Line & IP Setup */}
+                <div style={{ background: 'rgba(0,180,216,0.06)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(0,180,216,0.25)' }}>
+                  <span style={{ color: '#00B4D8', fontWeight: 700, fontSize: '0.85rem', display: 'block', marginBottom: '0.75rem' }}>
+                    🌐 네트워크 회선 및 IP 할당 정보
+                  </span>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr', gap: '0.6rem', marginBottom: '0.6rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', color: '#aaa', display: 'block', marginBottom: '0.2rem' }}>ISP 회선종류</label>
+                      <input
+                        type="text"
+                        placeholder="예: KT 전용회선 (1G)"
+                        value={netConfigForm.isp}
+                        onChange={e => setNetConfigForm({ ...netConfigForm, isp: e.target.value })}
+                        style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                      />
                     </div>
-                  ))}
+                    <div>
+                      <label style={{ fontSize: '0.75rem', color: '#aaa', display: 'block', marginBottom: '0.2rem' }}>메인 IP 대역 (CIDR)</label>
+                      <input
+                        type="text"
+                        placeholder="예: 211.234.100.0/24"
+                        value={netConfigForm.ipSubnet}
+                        onChange={e => setNetConfigForm({ ...netConfigForm, ipSubnet: e.target.value })}
+                        style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', color: '#aaa', display: 'block', marginBottom: '0.2rem' }}>게이트웨이</label>
+                      <input
+                        type="text"
+                        placeholder="예: 211.234.100.1"
+                        value={netConfigForm.gateway}
+                        onChange={e => setNetConfigForm({ ...netConfigForm, gateway: e.target.value })}
+                        style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', color: '#aaa', display: 'block', marginBottom: '0.2rem' }}>DNS 서버</label>
+                      <input
+                        type="text"
+                        placeholder="예: 168.126.63.1"
+                        value={netConfigForm.dnsPrimary}
+                        onChange={e => setNetConfigForm({ ...netConfigForm, dnsPrimary: e.target.value })}
+                        style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Installed Equipments Table */}
+                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <span style={{ color: 'var(--color-accent)', fontWeight: 700, fontSize: '0.85rem', display: 'block', marginBottom: '0.6rem' }}>
+                    💻 설치 및 구축 장비 현황 ({netConfigForm.equipments.length}대)
+                  </span>
+
+                  {/* Add Equipment Row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr 1.2fr auto', gap: '0.4rem', marginBottom: '0.8rem', background: 'rgba(0,0,0,0.3)', padding: '0.5rem', borderRadius: '6px' }}>
+                    <select
+                      value={newEquipType}
+                      onChange={e => setNewEquipType(e.target.value)}
+                      style={{ padding: '0.45rem', borderRadius: '4px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                    >
+                      <option value="UTM 방화벽">UTM 방화벽</option>
+                      <option value="백본 스위치">백본 스위치</option>
+                      <option value="L2/L3 스위치">L2/L3 스위치</option>
+                      <option value="무선 AP">무선 AP</option>
+                      <option value="IPT 교환기">IPT 교환기</option>
+                      <option value="서버/NAS">서버/NAS</option>
+                      <option value="기타 인프라">기타 인프라</option>
+                    </select>
+                    <input
+                      type="text"
+                      placeholder="장비 모델명/시리얼 (예: FortiGate 100F)"
+                      value={newEquipModel}
+                      onChange={e => setNewEquipModel(e.target.value)}
+                      style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="설치 위치 (예: 3층 랙1)"
+                      value={newEquipLocation}
+                      onChange={e => setNewEquipLocation(e.target.value)}
+                      style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                    />
+                    <button type="button" onClick={handleAddEquipment} className="btn btn-accent" style={{ fontSize: '0.78rem', padding: '0.45rem 0.75rem' }}>
+                      + 장비 추가
+                    </button>
+                  </div>
+
+                  {netConfigForm.equipments.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '200px', overflowY: 'auto' }}>
+                      {netConfigForm.equipments.map((eq, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.45rem 0.75rem', borderRadius: '4px', fontSize: '0.82rem' }}>
+                          <div>
+                            <span style={{ color: '#00B4D8', fontWeight: 600, marginRight: '0.5rem' }}>[{eq.type}]</span>
+                            <strong style={{ color: '#fff' }}>{eq.model}</strong>
+                            <span style={{ color: '#aaa', marginLeft: '0.6rem', fontSize: '0.78rem' }}>📍 {eq.location}</span>
+                          </div>
+                          <button type="button" onClick={() => handleRemoveEquipment(idx)} style={{ background: 'none', border: 'none', color: '#E63946', cursor: 'pointer', fontSize: '0.9rem' }}>
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.8rem', color: '#aaa', padding: '0.8rem', textAlign: 'center' }}>등록된 인프라 장비가 없습니다. 위 입력창에서 추가하세요.</div>
+                  )}
+                </div>
+
+                {/* Config Notes */}
+                <div>
+                  <label style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.2rem' }}>구성 특이사항 및 노하우 메모</label>
+                  <textarea
+                    rows={2}
+                    value={netConfigForm.notes}
+                    onChange={e => setNetConfigForm({ ...netConfigForm, notes: e.target.value })}
+                    placeholder="네트워크 이중화 설정, VLAN 구역 분리 내역 작성..."
+                    style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.82rem' }}
+                  ></textarea>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                  <button type="button" onClick={handleSaveNetworkConfig} className="btn btn-accent" style={{ padding: '0.5rem 1.2rem', fontWeight: 600 }}>
+                    💾 구성 정보 및 장비 현황 저장
+                  </button>
                 </div>
               </div>
+            )}
 
-              <div>
-                <span style={{ color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>📍 사업장 주소:</span>
-                <div style={{ color: '#fff', fontWeight: 500 }}>{viewClient.address || '주소 미입력'}</div>
-              </div>
-
-              {viewClient.memo && (
-                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid var(--color-accent)' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>📌 비고 및 특이사항:</span>
-                  <p style={{ color: '#ddd', fontSize: '0.88rem', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{viewClient.memo}</p>
-                </div>
-              )}
-            </div>
-
+            {/* Bottom Modal Actions */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-              <button onClick={() => { handleOpenEditModal(viewClient); setViewClient(null); }} className="btn btn-accent">✏️ 정보 수정</button>
+              <button onClick={() => { handleOpenEditModal(viewClient); setViewClient(null); }} className="btn btn-accent">✏️ 고객사 정보 수정</button>
               <button onClick={() => setViewClient(null)} className="btn btn-secondary">닫기</button>
             </div>
           </div>
@@ -540,7 +858,7 @@ export default function ClientsPage() {
       {/* Main Table */}
       <div className="panel">
         <div className="panel-header">
-          <h2 className="panel-title">🏢 고객사 목록 현황</h2>
+          <h2 className="panel-title">🏢 고객사 목록 현황 (클릭시 작업 이력 및 구성 정보 통합 관리)</h2>
           <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>총 {filteredClients.length}개사</span>
         </div>
 
@@ -560,9 +878,16 @@ export default function ClientsPage() {
           <tbody>
             {filteredClients.length > 0 ? (
               filteredClients.map(c => (
-                <tr key={c.id}>
+                <tr
+                  key={c.id}
+                  onClick={() => handleOpenDetailModal(c)}
+                  style={{ cursor: 'pointer', transition: 'background 0.15s ease' }}
+                  className="table-row-hover"
+                >
                   <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem' }}>{c.code}</td>
-                  <td style={{ fontWeight: 700, color: '#fff' }}>{c.name}</td>
+                  <td style={{ fontWeight: 700, color: '#fff' }}>
+                    <span style={{ borderBottom: '1px dotted var(--color-accent)' }}>{c.name}</span>
+                  </td>
                   <td>
                     <span style={{ fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
                       {c.industry || '미지정'}
@@ -599,9 +924,9 @@ export default function ClientsPage() {
                       )}
                     </div>
                   </td>
-                  <td>
+                  <td onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
-                      <button onClick={() => setViewClient(c)} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
+                      <button onClick={() => handleOpenDetailModal(c)} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
                         🔍 상세
                       </button>
                       <button onClick={() => handleOpenEditModal(c)} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>

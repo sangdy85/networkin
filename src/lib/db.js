@@ -253,6 +253,9 @@ try {
   if (!clientCols.some(c => c.name === 'engineer_secondary')) {
     db.exec("ALTER TABLE clients ADD COLUMN engineer_secondary TEXT");
   }
+  if (!clientCols.some(c => c.name === 'network_config')) {
+    db.exec("ALTER TABLE clients ADD COLUMN network_config TEXT");
+  }
 } catch (e) {
   console.warn('Clients migration error', e);
 }
