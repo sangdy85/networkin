@@ -82,10 +82,17 @@ export default function IntranetPage() {
 
   // Helper check for image formats
   const isImageFile = (fileName = '', filePath = '') => {
-    const target = (fileName || filePath).toLowerCase();
+    const target = (fileName || filePath || '').toLowerCase().trim();
+    if (!target) return false;
     return target.endsWith('.png') || target.endsWith('.jpg') || target.endsWith('.jpeg') ||
            target.endsWith('.gif') || target.endsWith('.svg') || target.endsWith('.webp');
   };
+
+  // Determine active display image for primary section
+  const primaryDisplayImage = (primaryNetworkDiagram && (
+    (isImageFile('', primaryNetworkDiagram.previewImgPath) ? primaryNetworkDiagram.previewImgPath : '') ||
+    (isImageFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) ? primaryNetworkDiagram.filePath : '')
+  )) || '';
 
   // Document File Upload Handler (PPTX, PDF, HWP, etc.)
   const handleDocFileUpload = async (e) => {
@@ -330,11 +337,6 @@ export default function IntranetPage() {
       default: return '🖥️';
     }
   };
-
-  // Determine active display image for primary section
-  const primaryDisplayImage = primaryNetworkDiagram
-    ? (primaryNetworkDiagram.previewImgPath || (isImageFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) ? primaryNetworkDiagram.filePath : ''))
-    : '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
