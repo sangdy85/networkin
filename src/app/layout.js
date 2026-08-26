@@ -72,15 +72,7 @@ function SidebarNav() {
         </Link>
 
         <ul className="sidebar-menu">
-          {/* 1. 대시보드 */}
-          <li className={`sidebar-item ${pathname === '/' ? 'active' : ''}`}>
-            <Link href="/">
-              <span style={{ fontSize: '1.2rem' }}>📊</span>
-              <span>대시보드</span>
-            </Link>
-          </li>
-
-          {/* 2. 웹메일 */}
+          {/* 1. 웹메일 */}
           <li className={`sidebar-item ${pathname === '/mail' ? 'active' : ''}`}>
             <Link href="/mail">
               <span style={{ fontSize: '1.2rem' }}>✉️</span>
@@ -88,7 +80,7 @@ function SidebarNav() {
             </Link>
           </li>
 
-          {/* 3. 일정관리 */}
+          {/* 2. 일정관리 */}
           <li className={`sidebar-item ${pathname === '/schedule' ? 'active' : ''}`}>
             <Link href="/schedule">
               <span style={{ fontSize: '1.2rem' }}>📅</span>
@@ -101,6 +93,14 @@ function SidebarNav() {
             <Link href="/intranet">
               <span style={{ fontSize: '1.2rem' }}>🖥️</span>
               <span>사내망 관리</span>
+            </Link>
+          </li>
+
+          {/* 3-2. 고객사 관리 */}
+          <li className={`sidebar-item ${pathname === '/clients' ? 'active' : ''}`}>
+            <Link href="/clients">
+              <span style={{ fontSize: '1.2rem' }}>🏢</span>
+              <span>고객사 관리</span>
             </Link>
           </li>
 

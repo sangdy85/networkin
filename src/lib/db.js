@@ -204,6 +204,22 @@ db.exec(`
     date TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    industry TEXT DEFAULT '제조업',
+    contact_name TEXT,
+    contact_phone TEXT,
+    contact_email TEXT,
+    address TEXT,
+    contract_status TEXT DEFAULT '유지보수 계약중',
+    contract_date TEXT,
+    assigned_pm TEXT,
+    memo TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Initialize default admin accounts if users table is empty
