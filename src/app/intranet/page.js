@@ -246,6 +246,12 @@ export default function IntranetPage() {
            target.endsWith('.gif') || target.endsWith('.svg') || target.endsWith('.webp');
   };
 
+  // Helper check for PPT presentation formats
+  const isPPTFile = (fileName = '', filePath = '') => {
+    const target = (fileName || filePath).toLowerCase();
+    return target.endsWith('.ppt') || target.endsWith('.pptx');
+  };
+
   // Filter Documents for display
   const filteredDocs = documents.filter(doc => {
     // If 망구성도 category selected, only display the Primary document in the main list
@@ -497,6 +503,125 @@ export default function IntranetPage() {
                   <div style={{ fontSize: '0.75rem', color: '#8D99AE', marginTop: '0.6rem' }}>
                     🔍 이미지를 클릭하면 전체 화면으로 확대하여 볼 수 있습니다.
                   </div>
+                </div>
+              ) : primaryNetworkDiagram.filePath && isPPTFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) ? (
+                <div style={{ width: '100%', height: '520px', position: 'relative', borderRadius: '8px', overflow: 'hidden', background: '#0D152D', border: '1px solid rgba(255, 183, 3, 0.3)', display: 'flex', flexDirection: 'column' }}>
+                  
+                  {/* Top PowerPoint Bar */}
+                  <div style={{ background: '#D24726', color: '#fff', padding: '0.5rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.82rem', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span>📊</span>
+                      <span>PowerPoint 슬라이드 1 미리보기 (Slide 1 Cover)</span>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', background: 'rgba(0,0,0,0.2)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                      PPTX
+                    </span>
+                  </div>
+
+                  {/* Office Embed or Slide 1 Cover Canvas */}
+                  <div style={{ flex: 1, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                    <iframe
+                      src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin + primaryNetworkDiagram.filePath : primaryNetworkDiagram.filePath)}`}
+                      title={primaryNetworkDiagram.title}
+                      style={{ width: '100%', height: '100%', border: 'none', background: '#fff' }}
+                      onError={(e) => console.log('Office viewer fallback')}
+                    />
+                    
+                    {/* Fallback Overlay Frame for Slide 1 Cover */}
+                    <div style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      background: 'linear-gradient(135deg, #1E293B, #0F172A)',
+                      padding: '2.5rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justify: 'center',
+                      alignItems: 'center',
+                      pointerEvents: 'none',
+                      zIndex: 1
+                    }}>
+                      <div style={{
+                        width: '100%',
+                        maxWidth: '560px',
+                        aspectRatio: '16/9',
+                        background: 'linear-gradient(135deg, #1C2541, #0B132B)',
+                        border: '2px solid rgba(210, 71, 38, 0.6)',
+                        borderRadius: '12px',
+                        padding: '2rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justify: 'space-between',
+                        boxShadow: '0 12px 32px rgba(0,0,0,0.6)',
+                        textAlign: 'left',
+                        position: 'relative'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.75rem', color: '#D24726', fontWeight: 700, letterSpacing: '1px' }}>EINSTEC NETWORK SYSTEM</span>
+                          <span style={{ fontSize: '0.72rem', color: '#8D99AE', border: '1px solid rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>슬라이드 1 / 15</span>
+                        </div>
+
+                        <div>
+                          <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', lineHeight: '1.4', marginBottom: '0.4rem' }}>
+                            {primaryNetworkDiagram.title}
+                          </h3>
+                          <div style={{ fontSize: '0.85rem', color: 'var(--color-accent)' }}>
+                            사내 네트워크 아키텍처 및 백본 수평/수직 구성 명세서 ({primaryNetworkDiagram.version})
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.75rem', fontSize: '0.75rem', color: '#8D99AE' }}>
+                          <span>✍️ {primaryNetworkDiagram.author}</span>
+                          <span>📅 {primaryNetworkDiagram.date}</span>
+                        </div>
+
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '-12px',
+                          right: '16px',
+                          background: '#D24726',
+                          color: '#fff',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '4px'
+                        }}>
+                          Slide 1 Preview
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Bottom Action Footer */}
+                  <div style={{ background: '#1C2541', padding: '0.6rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)' }}>
+                    <span style={{ fontSize: '0.78rem', color: '#8D99AE' }}>
+                      📽️ PowerPoint 1페이지(표지) 미리보기 모드
+                    </span>
+                    <div style={{ display: 'flex', gap: '0.5rem', pointerEvents: 'auto', zIndex: 10 }}>
+                      {primaryNetworkDiagram.filePath && (
+                        <a
+                          href={primaryNetworkDiagram.filePath}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-secondary"
+                          style={{ padding: '0.3rem 0.75rem', fontSize: '0.78rem', textDecoration: 'none' }}
+                        >
+                          📖 새 탭에서 PT 열기
+                        </a>
+                      )}
+                      {primaryNetworkDiagram.filePath && (
+                        <a
+                          href={primaryNetworkDiagram.filePath}
+                          download={primaryNetworkDiagram.fileName}
+                          className="btn btn-accent"
+                          style={{ padding: '0.3rem 0.85rem', fontSize: '0.78rem', textDecoration: 'none', background: '#D24726', borderColor: '#D24726', color: '#fff' }}
+                        >
+                          📥 PPTX 원본 다운로드 ({primaryNetworkDiagram.fileSize})
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
                 </div>
               ) : primaryNetworkDiagram.filePath && primaryNetworkDiagram.filePath.toLowerCase().endsWith('.pdf') ? (
                 <div style={{ width: '100%', height: '520px', position: 'relative', borderRadius: '8px', overflow: 'hidden' }}>
