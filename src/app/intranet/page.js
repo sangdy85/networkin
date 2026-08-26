@@ -393,14 +393,14 @@ export default function IntranetPage() {
               </div>
             </div>
 
-            {/* Network Diagram View Area */}
+            {/* Network Diagram View Area (1st Page Preview Format) */}
             <div style={{
               background: '#070C1E',
               border: '1px solid var(--border-color)',
               borderRadius: '12px',
               padding: '1.25rem',
               textAlign: 'center',
-              minHeight: '260px',
+              minHeight: '280px',
               display: 'flex',
               flexDirection: 'column',
               justify: 'center',
@@ -408,53 +408,151 @@ export default function IntranetPage() {
               overflow: 'hidden',
               position: 'relative'
             }}>
-              {isImageFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) && primaryNetworkDiagram.filePath ? (
-                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <img
-                    src={primaryNetworkDiagram.filePath}
-                    alt={primaryNetworkDiagram.title}
-                    onClick={() => setLightboxImage(primaryNetworkDiagram.filePath)}
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '480px',
-                      objectFit: 'contain',
-                      borderRadius: '8px',
-                      cursor: 'zoom-in',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-                      transition: 'transform 0.2s ease'
-                    }}
-                  />
-                  <div style={{ fontSize: '0.75rem', color: '#8D99AE', marginTop: '0.6rem' }}>
-                    🔍 이미지를 클릭하면 확대하여 볼 수 있습니다.
-                  </div>
+              
+              {/* Preview Bar Indicator */}
+              <div style={{
+                width: '100%',
+                display: 'flex',
+                justify: 'space-between',
+                alignItems: 'center',
+                marginBottom: '0.85rem',
+                paddingBottom: '0.65rem',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span className="badge" style={{ background: 'rgba(0, 180, 216, 0.2)', color: 'var(--color-accent)', border: '1px solid rgba(0, 180, 216, 0.4)', fontSize: '0.76rem', padding: '0.2rem 0.6rem' }}>
+                    📄 첫 번째 페이지 미리보기
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: '#8D99AE' }}>
+                    ({primaryNetworkDiagram.fileName})
+                  </span>
                 </div>
-              ) : primaryNetworkDiagram.filePath && primaryNetworkDiagram.filePath.toLowerCase().endsWith('.pdf') ? (
-                <div style={{ width: '100%', height: '450px' }}>
-                  <iframe
-                    src={primaryNetworkDiagram.filePath}
-                    title={primaryNetworkDiagram.title}
-                    style={{ width: '100%', height: '100%', border: 'none', borderRadius: '8px' }}
-                  />
-                </div>
-              ) : (
-                /* Fallback File Card Preview */
-                <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{ fontSize: '3.5rem' }}>📄</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 600, color: '#fff' }}>
-                    {primaryNetworkDiagram.fileName}
-                  </div>
-                  <p style={{ fontSize: '0.85rem', color: '#8D99AE', maxWidth: '500px', lineHeight: '1.5' }}>
-                    {primaryNetworkDiagram.description || '대표 망구성도 첨부 파일입니다. 다운로드 버튼을 클릭하여 원본 파일을 확인하세요.'}
-                  </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {primaryNetworkDiagram.filePath && primaryNetworkDiagram.filePath.toLowerCase().endsWith('.pdf') && (
+                    <>
+                      <button
+                        onClick={() => setPdfViewMode('page1')}
+                        className={`btn ${pdfViewMode === 'page1' ? 'btn-accent' : 'btn-secondary'}`}
+                        style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                      >
+                        📄 1페이지 미리보기
+                      </button>
+                      <button
+                        onClick={() => setPdfViewMode('full')}
+                        className={`btn ${pdfViewMode === 'full' ? 'btn-accent' : 'btn-secondary'}`}
+                        style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}
+                      >
+                        📖 전체 보기
+                      </button>
+                    </>
+                  )}
                   {primaryNetworkDiagram.filePath && (
                     <a
                       href={primaryNetworkDiagram.filePath}
-                      download={primaryNetworkDiagram.fileName}
-                      className="btn btn-accent"
-                      style={{ padding: '0.55rem 1.4rem', fontSize: '0.88rem', textDecoration: 'none' }}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-secondary"
+                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', color: 'var(--color-accent)', textDecoration: 'none' }}
                     >
-                      📥 원본 파일 바로 다운로드 ({primaryNetworkDiagram.fileSize})
+                      🔗 새 탭에서 열기
                     </a>
+                  )}
+                </div>
+              </div>
+
+              {isImageFile(primaryNetworkDiagram.fileName, primaryNetworkDiagram.filePath) && primaryNetworkDiagram.filePath ? (
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ position: 'relative', width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    <img
+                      src={primaryNetworkDiagram.filePath}
+                      alt={primaryNetworkDiagram.title}
+                      onClick={() => setLightboxImage(primaryNetworkDiagram.filePath)}
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '520px',
+                        objectFit: 'contain',
+                        borderRadius: '8px',
+                        cursor: 'zoom-in',
+                        boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+                        transition: 'transform 0.2s ease'
+                      }}
+                    />
+                    <div style={{
+                      position: 'absolute',
+                      top: '0.75rem',
+                      right: '0.75rem',
+                      background: 'rgba(0,0,0,0.7)',
+                      color: '#fff',
+                      fontSize: '0.72rem',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '4px',
+                      backdropFilter: 'blur(4px)'
+                    }}>
+                      Page 1 (대표 이미지)
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#8D99AE', marginTop: '0.6rem' }}>
+                    🔍 이미지를 클릭하면 전체 화면으로 확대하여 볼 수 있습니다.
+                  </div>
+                </div>
+              ) : primaryNetworkDiagram.filePath && primaryNetworkDiagram.filePath.toLowerCase().endsWith('.pdf') ? (
+                <div style={{ width: '100%', height: '520px', position: 'relative', borderRadius: '8px', overflow: 'hidden' }}>
+                  <iframe
+                    src={`${primaryNetworkDiagram.filePath}${pdfViewMode === 'page1' ? '#page=1&toolbar=0&navpanes=0&scrollbar=0&view=FitH' : ''}`}
+                    title={primaryNetworkDiagram.title}
+                    style={{ width: '100%', height: '100%', border: 'none', borderRadius: '8px', background: '#fff' }}
+                  />
+                  {pdfViewMode === 'page1' && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '0.75rem',
+                      right: '0.75rem',
+                      background: 'rgba(11, 19, 43, 0.85)',
+                      border: '1px solid rgba(0,180,216,0.3)',
+                      color: 'var(--color-accent)',
+                      fontSize: '0.75rem',
+                      padding: '0.3rem 0.7rem',
+                      borderRadius: '6px',
+                      backdropFilter: 'blur(4px)',
+                      pointerEvents: 'none'
+                    }}>
+                      📄 1페이지 미리보기 모드 활성화됨
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Fallback File Card Preview */
+                <div style={{ padding: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ fontSize: '3.8rem' }}>📄</div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 600, color: '#fff' }}>
+                    {primaryNetworkDiagram.fileName}
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: '#8D99AE', maxWidth: '520px', lineHeight: '1.5' }}>
+                    {primaryNetworkDiagram.description || '대표 망구성도 첨부 파일의 1페이지 미리보기입니다. 전체 파일 확인 및 다운로드는 아래 버튼을 이용하세요.'}
+                  </p>
+                  {primaryNetworkDiagram.filePath && (
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <a
+                        href={primaryNetworkDiagram.filePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary"
+                        style={{ padding: '0.55rem 1.2rem', fontSize: '0.88rem', textDecoration: 'none' }}
+                      >
+                        📖 새 탭에서 문서 열기
+                      </a>
+                      <a
+                        href={primaryNetworkDiagram.filePath}
+                        download={primaryNetworkDiagram.fileName}
+                        className="btn btn-accent"
+                        style={{ padding: '0.55rem 1.4rem', fontSize: '0.88rem', textDecoration: 'none' }}
+                      >
+                        📥 원본 다운로드 ({primaryNetworkDiagram.fileSize})
+                      </a>
+                    </div>
                   )}
                 </div>
               )}
