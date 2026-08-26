@@ -64,10 +64,11 @@ export default function MeetingPage() {
     }
   };
 
-  // Available attendees built from real registered DB users
-  const attendeeList = registeredUsers.length > 0
-    ? registeredUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim())
-    : ['이강욱 팀장', '마스터 관리자', '김철수 과장', '박민우 대리', '최현우 과장'];
+  // Available attendees built from real registered DB users (excluding master admin)
+  const activeUsers = registeredUsers.filter(u => u.id.toLowerCase() !== 'netadmin' && u.name !== '마스터 관리자' && u.role !== '마스터 관리자');
+  const attendeeList = activeUsers.length > 0
+    ? activeUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim())
+    : ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
 
   // Handle Primary Category Select
   const handlePrimaryCategoryChange = (cat) => {

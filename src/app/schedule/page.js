@@ -210,11 +210,13 @@ export default function SchedulePage() {
               }}
             >
               <option value="전체">전체 회원 (전체 일정)</option>
-              {registeredUsers.map(u => (
-                <option key={u.id} value={u.name}>
-                  👤 {u.name} {u.rank || u.duty || ''} ({u.department || '네트워크사업부'})
-                </option>
-              ))}
+              {registeredUsers
+                .filter(u => u.id.toLowerCase() !== 'netadmin' && u.name !== '마스터 관리자' && u.role !== '마스터 관리자')
+                .map(u => (
+                  <option key={u.id} value={u.name}>
+                    👤 {u.name} {u.rank || u.duty || ''} ({u.department || '네트워크사업부'})
+                  </option>
+                ))}
             </select>
           </div>
 

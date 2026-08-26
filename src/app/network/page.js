@@ -68,9 +68,10 @@ export default function NetworkPage() {
     }
   };
 
-  const workerList = registeredUsers.length > 0
-    ? registeredUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim())
-    : COMPANY_WORKERS;
+  const activeUsers = registeredUsers.filter(u => u.id.toLowerCase() !== 'netadmin' && u.name !== '마스터 관리자' && u.role !== '마스터 관리자');
+  const workerList = activeUsers.length > 0
+    ? activeUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim())
+    : ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
 
   const saveItems = (newItems) => {
     setItems(newItems);
