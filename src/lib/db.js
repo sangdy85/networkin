@@ -241,6 +241,22 @@ if (userCount === 0) {
   );
 }
 
+// Migration helper for clients table
+try {
+  const clientCols = db.prepare("PRAGMA table_info(clients)").all();
+  if (!clientCols.some(c => c.name === 'contacts')) {
+    db.exec("ALTER TABLE clients ADD COLUMN contacts TEXT");
+  }
+  if (!clientCols.some(c => c.name === 'engineer_primary')) {
+    db.exec("ALTER TABLE clients ADD COLUMN engineer_primary TEXT");
+  }
+  if (!clientCols.some(c => c.name === 'engineer_secondary')) {
+    db.exec("ALTER TABLE clients ADD COLUMN engineer_secondary TEXT");
+  }
+} catch (e) {
+  console.warn('Clients migration error', e);
+}
+
 // Migration helper for intranet_docs
 try {
   const columns = db.prepare("PRAGMA table_info(intranet_docs)").all();
