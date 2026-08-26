@@ -11,6 +11,7 @@ export default function ProjectsPage() {
   const { currentUser } = useAuth();
 
   const [projects, setProjects] = useState(INITIAL_PROJECTS);
+  const [registeredUsers, setRegisteredUsers] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,9 +35,10 @@ export default function ProjectsPage() {
   const [formBudget, setFormBudget] = useState('3,000만원');
   const [formMemo, setFormMemo] = useState('');
 
-  // Fetch from Real Backend SQLite API `/api/projects`
+  // Fetch from Real Backend SQLite API `/api/projects` & `/api/auth/users`
   useEffect(() => {
     fetchProjectsFromAPI();
+    fetchUsersFromAPI();
   }, []);
 
   const fetchProjectsFromAPI = async () => {
@@ -53,6 +55,22 @@ export default function ProjectsPage() {
     }
     setProjects([]);
   };
+
+  const fetchUsersFromAPI = async () => {
+    try {
+      const res = await fetch('/api/auth/users');
+      if (res.ok) {
+        const data = await res.json();
+        setRegisteredUsers(data || []);
+      }
+    } catch (e) {
+      console.warn('Fetch users error', e);
+    }
+  };
+
+  const workerList = registeredUsers.length > 0
+    ? registeredUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim())
+    : COMPANY_WORKERS;
 
   // Sync All Projects to Schedule
   const syncAllProjectsToSchedule = (projList) => {
@@ -451,7 +469,7 @@ export default function ProjectsPage() {
               <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.4rem' }}>👷 현장 투입 작업자 배정</label>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {COMPANY_WORKERS.map(w => {
+                  {workerList.map(w => {
                     const isSelected = formWorkers.includes(w);
                     return (
                       <button

@@ -29,15 +29,18 @@ const WORK_SUB_CATEGORIES = {
   'IPT': ['전체', '작업', '정기점검', '유지보수', '장애처리', '구축', '기타'],
   '네트워크': ['전체', '작업', '정기점검', '유지보수', '장애처리', '구축', '기타'],
   '시공현장': ['전체', '배선 공사', '배관/입선 작업', '구축', '현장 실사 및 실측', '공사'],
-  '회의/컨설팅': ['전체', '사내 회의', '고객사 미팅', '견적 사전 컨설팅', '기술 제안 미팅', '설계 컨설팅']
+  '회의/컨설팅': ['전체', '사내 회의', '고객사 미팅', '견적 사전 컨설팅', '기술 제안 미팅', '설계 컨설팅'],
+  '유지보수': ['전체', '네트워크 장애', 'IPT 전화 장애', '서버/UTM 점검', '정기 점검', '기타 긴급 조치']
 };
 
-const CATEGORIES = ['전체', 'IPT', '네트워크', '시공현장', '회의/컨설팅'];
+const CATEGORIES = ['전체', 'IPT', '네트워크', '시공현장', '회의/컨설팅', '유지보수'];
 
 export default function SchedulePage() {
   const [events, setEvents] = useState([]);
+  const [registeredUsers, setRegisteredUsers] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('전체');
   const [selectedWorkSubCategory, setSelectedWorkSubCategory] = useState('전체');
+  const [selectedUserFilter, setSelectedUserFilter] = useState('전체');
 
   // Dynamic Year & Month State (Default: 2026년 8월)
   const [currentYear, setCurrentYear] = useState(2026);
@@ -48,9 +51,10 @@ export default function SchedulePage() {
   // Read-only detail view drawer
   const [viewEvent, setViewEvent] = useState(null);
 
-  // Fetch aggregated schedules directly from Backend `/api/schedule` endpoint
+  // Fetch aggregated schedules & registered DB users
   useEffect(() => {
     fetchSchedulesFromAPI();
+    fetchUsersFromAPI();
   }, []);
 
   const fetchSchedulesFromAPI = async () => {
@@ -63,6 +67,18 @@ export default function SchedulePage() {
       }
     } catch (e) {
       console.warn('Schedule API connection fallback');
+    }
+  };
+
+  const fetchUsersFromAPI = async () => {
+    try {
+      const res = await fetch('/api/auth/users');
+      if (res.ok) {
+        const data = await res.json();
+        setRegisteredUsers(data || []);
+      }
+    } catch (e) {
+      console.warn('Fetch users error in schedule page', e);
     }
   };
 
@@ -92,7 +108,7 @@ export default function SchedulePage() {
     setFilterBySelectedDayOnly(false);
   };
 
-  // Format holiday name to break lines cleanly: "대체공휴일 (부처님오신날)" -> "대체공휴일\n(부처님오신날)"
+  // Format holiday name
   const formatHolidayName = (name) => {
     if (!name) return '';
     return name.replace(' (', '\n(');
@@ -111,30 +127,35 @@ export default function SchedulePage() {
         const d = new Date(targetDateStr);
         const dayOfWeek = d.getDay(); // 0: Sun, 6: Sat
         if (dayOfWeek === 0 || dayOfWeek === 6) return false;
-        if (KOREAN_HOLIDAYS_2026[targetDateStr]) return false; // Exclude official holidays!
+        if (KOREAN_HOLIDAYS_2026[targetDateStr]) return false;
       }
       return true;
     }
     return false;
   };
 
-  // Calculate Calendar Grid properties for currentYear, currentMonth
+  // Calculate Calendar Grid properties
   const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
   const startDayOfWeek = new Date(currentYear, currentMonth - 1, 1).getDay();
-
   const selectedDateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
 
   const filteredEvents = events.filter(e => {
     const categoryMatch = selectedCategory === '전체' || e.type === selectedCategory;
     const subCategoryMatch = selectedWorkSubCategory === '전체' || e.workType === selectedWorkSubCategory;
     
+    // User / Assignee Matching
+    const userMatch = selectedUserFilter === '전체' || (
+      (e.assignee && e.assignee.includes(selectedUserFilter)) ||
+      (Array.isArray(e.workers) && e.workers.some(w => w.includes(selectedUserFilter)))
+    );
+
     // Check if event falls into the currently displayed month
     const currentMonthPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
     const inCurrentMonth = (e.date && e.date.startsWith(currentMonthPrefix)) || 
       (e.startDate && e.startDate.slice(0, 7) <= currentMonthPrefix && currentMonthPrefix <= (e.endDate || e.startDate).slice(0, 7));
 
     const dayMatch = filterBySelectedDayOnly ? isEventOnDate(e, selectedDateStr) : inCurrentMonth;
-    return categoryMatch && subCategoryMatch && dayMatch;
+    return categoryMatch && subCategoryMatch && userMatch && dayMatch;
   });
 
   return (
@@ -143,14 +164,14 @@ export default function SchedulePage() {
       <header className="portal-header" style={{ marginBottom: '1.2rem' }}>
         <div>
           <h1 className="portal-title">📅 전사 통합 일정 관리 (SQLite DB 실시간 집계)</h1>
-          <p className="portal-subtitle">IPT, 네트워크, 시공현장, 회의/컨설팅 DB 테이블 통합 쿼리 집계 캘린더</p>
+          <p className="portal-subtitle">IPT, 네트워크, 시공현장, 회의/컨설팅, 유지보수 DB 통합 실시간 집계 캘린더</p>
         </div>
         <div style={{ background: 'rgba(0,180,216,0.1)', padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid rgba(0,180,216,0.3)', fontSize: '0.82rem', color: '#00B4D8', fontWeight: 600 }}>
-          🔒 읽기 전용 캘린더 (SQLite DB 실시간 쿼리 연동)
+          🔒 통합 집계 캘린더 (실시간 DB 연동)
         </div>
       </header>
 
-      {/* 1차 일정 구분 Filter Tabs Bar */}
+      {/* Category Tabs & User Filter Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
           {CATEGORIES.map((cat) => {
@@ -171,16 +192,43 @@ export default function SchedulePage() {
           })}
         </div>
 
-        <button
-          onClick={() => setFilterBySelectedDayOnly(!filterBySelectedDayOnly)}
-          className={`btn ${filterBySelectedDayOnly ? 'btn-accent' : 'btn-secondary'}`}
-          style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
-        >
-          {filterBySelectedDayOnly ? `📌 ${currentMonth}월 ${selectedDay}일 일정만 보기 (ON)` : `📅 ${currentYear}년 ${currentMonth}월 전체 일정 보기`}
-        </button>
+        {/* User Filter Dropdown */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.03)', padding: '0.35rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--color-accent)', fontWeight: 600 }}>👤 담당자/작업자 필터:</span>
+            <select
+              value={selectedUserFilter}
+              onChange={e => setSelectedUserFilter(e.target.value)}
+              style={{
+                padding: '0.35rem 0.65rem',
+                borderRadius: '6px',
+                background: 'var(--bg-main)',
+                border: '1px solid var(--color-accent)',
+                color: '#fff',
+                fontSize: '0.82rem',
+                fontWeight: 600
+              }}
+            >
+              <option value="전체">전체 회원 (전체 일정)</option>
+              {registeredUsers.map(u => (
+                <option key={u.id} value={u.name}>
+                  👤 {u.name} {u.rank || u.duty || ''} ({u.department || '네트워크사업부'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={() => setFilterBySelectedDayOnly(!filterBySelectedDayOnly)}
+            className={`btn ${filterBySelectedDayOnly ? 'btn-accent' : 'btn-secondary'}`}
+            style={{ fontSize: '0.8rem', padding: '0.45rem 0.85rem' }}
+          >
+            {filterBySelectedDayOnly ? `📌 ${currentMonth}월 ${selectedDay}일 일정만 (ON)` : `📅 ${currentYear}년 ${currentMonth}월 전체 일정`}
+          </button>
+        </div>
       </div>
 
-      {/* 2차 작업 구분 Sub-Filter Bar */}
+      {/* 2차 세부 작업 구분 Sub-Filter Bar */}
       {selectedCategory !== '전체' && WORK_SUB_CATEGORIES[selectedCategory] && (
         <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.8rem 1rem', borderRadius: '10px', marginBottom: '1.5rem', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.8rem', color: 'var(--color-accent)', fontWeight: 600 }}>↳ [{selectedCategory}] 세부 작업 구분:</span>
@@ -223,7 +271,7 @@ export default function SchedulePage() {
               <div>
                 <span style={{ color: '#aaa', display: 'block', marginBottom: '0.4rem' }}>👷 투입 작업자 / 참석자:</span>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  {(viewEvent.workers || [viewEvent.assignee]).map((w, i) => (
+                  {(viewEvent.workers && viewEvent.workers.length > 0 ? viewEvent.workers : [viewEvent.assignee]).map((w, i) => (
                     <span key={i} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.29rem 0.6rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}>
                       👤 {w}
                     </span>
@@ -239,261 +287,214 @@ export default function SchedulePage() {
               )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
               <button onClick={() => setViewEvent(null)} className="btn btn-secondary">닫기</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Grid Layout: Calendar Grid + Schedule List */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
-        
-        {/* Dynamic Month Interactive Calendar Panel */}
-        <div className="panel" style={{ minWidth: '300px' }}>
-          
-          {/* Dynamic Month Navigation Controls */}
-          <div className="panel-header" style={{ marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <button onClick={handlePrevMonth} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }}>
-                ◀
-              </button>
-              <h2 className="panel-title" style={{ fontSize: '1.25rem', color: '#fff', minWidth: '130px', textAlign: 'center' }}>
-                {currentYear}년 {currentMonth}월
-              </h2>
-              <button onClick={handleNextMonth} className="btn btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem' }}>
-                ▶
-              </button>
+      {/* Calendar Header with Navigation */}
+      <div className="panel" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, margin: 0, color: '#fff' }}>
+              📅 {currentYear}년 {currentMonth}월
+            </h2>
+            <div style={{ display: 'flex', gap: '0.3rem' }}>
+              <button onClick={handlePrevMonth} className="btn btn-secondary" style={{ padding: '0.3rem 0.7rem', fontSize: '0.85rem' }}>◀ 이전달</button>
+              <button onClick={handleGoToday} className="btn btn-secondary" style={{ padding: '0.3rem 0.7rem', fontSize: '0.85rem' }}>오늘 (2026.08)</button>
+              <button onClick={handleNextMonth} className="btn btn-secondary" style={{ padding: '0.3rem 0.7rem', fontSize: '0.85rem' }}>다음달 ▶</button>
             </div>
-
-            <button
-              onClick={handleGoToday}
-              className="btn btn-accent"
-              style={{ fontSize: '0.78rem', padding: '0.3rem 0.7rem' }}
-            >
-              오늘 (8/19)
-            </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem', textAlign: 'center', fontSize: '0.85rem' }}>
-            <div style={{ color: '#E63946', fontWeight: 700, paddingBottom: '0.4rem' }}>일</div>
-            <div style={{ fontWeight: 700, paddingBottom: '0.4rem' }}>월</div>
-            <div style={{ fontWeight: 700, paddingBottom: '0.4rem' }}>화</div>
-            <div style={{ fontWeight: 700, paddingBottom: '0.4rem' }}>수</div>
-            <div style={{ fontWeight: 700, paddingBottom: '0.4rem' }}>목</div>
-            <div style={{ fontWeight: 700, paddingBottom: '0.4rem' }}>금</div>
-            <div style={{ color: '#00B4D8', fontWeight: 700, paddingBottom: '0.4rem' }}>토</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', gap: '0.8rem', alignItems: 'center' }}>
+            <span style={{ color: '#E63946' }}>🔴 공휴일</span>
+            <span>🔵 토요일</span>
+            <span>⚪ 평일</span>
+          </div>
+        </div>
+      </div>
 
-            {/* Empty padding cells before Day 1 */}
-            {Array.from({ length: startDayOfWeek }).map((_, idx) => (
-              <div key={`empty-${idx}`} style={{ padding: '0.6rem 0.2rem', opacity: 0.15 }} />
+      {/* Month Calendar Grid View */}
+      {!filterBySelectedDayOnly && (
+        <div className="panel" style={{ padding: '1rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '1px', background: 'var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+            
+            {/* Day Header Row */}
+            {['일', '월', '화', '수', '목', '금', '토'].map((dayName, idx) => (
+              <div
+                key={dayName}
+                style={{
+                  background: 'var(--bg-main)',
+                  padding: '0.6rem 0.4rem',
+                  textAlign: 'center',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  color: idx === 0 ? '#E63946' : idx === 6 ? '#3B82F6' : 'var(--color-text-muted)'
+                }}
+              >
+                {dayName}
+              </div>
             ))}
 
-            {/* Dynamic Days 1 to daysInMonth */}
-            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-              const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${day < 10 ? '0' + day : day}`;
-              const dayEvents = events.filter(e => isEventOnDate(e, dateStr));
+            {/* Blank Boxes before day 1 */}
+            {Array.from({ length: startDayOfWeek }).map((_, idx) => (
+              <div key={`blank-${idx}`} style={{ background: 'var(--bg-card)', minHeight: '95px', opacity: 0.3 }} />
+            ))}
+
+            {/* Month Day Boxes */}
+            {Array.from({ length: daysInMonth }).map((_, idx) => {
+              const dayNum = idx + 1;
+              const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+              const dayOfWeek = new Date(currentYear, currentMonth - 1, dayNum).getDay();
               const holidayName = KOREAN_HOLIDAYS_2026[dateStr];
-              const isSelected = selectedDay === day;
+              const isSunday = dayOfWeek === 0;
+              const isSaturday = dayOfWeek === 6;
 
-              const dateObj = new Date(dateStr);
-              const isSunday = dateObj.getDay() === 0;
-              const isSaturday = dateObj.getDay() === 6;
-
-              let textColor = '#fff';
-              if (isSelected) {
-                textColor = '#000';
-              } else if (holidayName || isSunday) {
-                textColor = '#E63946';
-              } else if (isSaturday) {
-                textColor = '#00B4D8';
-              }
+              const dayEvents = events.filter(e => isEventOnDate(e, dateStr) && (selectedCategory === '전체' || e.type === selectedCategory) && (selectedUserFilter === '전체' || (e.assignee && e.assignee.includes(selectedUserFilter)) || (Array.isArray(e.workers) && e.workers.some(w => w.includes(selectedUserFilter)))));
+              const isSelected = selectedDay === dayNum;
 
               return (
                 <div
-                  key={day}
-                  onClick={() => {
-                    setSelectedDay(day);
-                    setFilterBySelectedDayOnly(true);
-                  }}
+                  key={`day-${dayNum}`}
+                  onClick={() => setSelectedDay(dayNum)}
                   style={{
-                    padding: '0.45rem 0.1rem',
-                    borderRadius: '8px',
-                    backgroundColor: isSelected 
-                      ? 'var(--color-accent)' 
-                      : holidayName 
-                      ? 'rgba(230,57,70,0.14)' 
-                      : dayEvents.length > 0 
-                      ? 'rgba(255,255,255,0.08)' 
-                      : 'rgba(0,0,0,0.2)',
-                    color: textColor,
-                    fontWeight: isSelected || holidayName ? 700 : 500,
-                    border: isSelected 
-                      ? '2px solid #fff' 
-                      : holidayName 
-                      ? '1px solid rgba(230,57,70,0.6)' 
-                      : dayEvents.length > 0 
-                      ? '1px solid rgba(0,180,216,0.4)' 
-                      : '1px solid transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    minHeight: '70px',
+                    background: isSelected ? 'rgba(0,180,216,0.1)' : 'var(--bg-card)',
+                    minHeight: '105px',
+                    padding: '0.4rem',
                     display: 'flex',
                     flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'flex-start',
-                    overflow: 'hidden'
+                    justify: 'space-between',
+                    cursor: 'pointer',
+                    border: isSelected ? '1px solid var(--color-accent)' : 'none',
+                    transition: 'background 0.2s ease'
                   }}
                 >
-                  <span style={{ fontSize: '0.9rem', lineHeight: '1.2' }}>{day}</span>
-
-                  {/* Holiday Badge */}
-                  {holidayName && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <span style={{
-                      fontSize: '0.62rem',
-                      color: isSelected ? '#000' : '#E63946',
+                      fontSize: '0.85rem',
                       fontWeight: 700,
-                      marginTop: '3px',
-                      whiteSpace: 'pre-line',
-                      textAlign: 'center',
-                      lineHeight: '1.15',
-                      wordBreak: 'keep-all'
+                      color: holidayName || isSunday ? '#E63946' : isSaturday ? '#3B82F6' : '#fff'
                     }}>
-                      {formatHolidayName(holidayName)}
+                      {dayNum}
                     </span>
-                  )}
+                    {holidayName && (
+                      <span style={{ fontSize: '0.68rem', color: '#E63946', fontWeight: 700, textAlign: 'right', whiteSpace: 'pre-line', lineHeight: '1.1' }}>
+                        {formatHolidayName(holidayName)}
+                      </span>
+                    )}
+                  </div>
 
-                  {/* Event Dots */}
-                  {dayEvents.length > 0 && (
-                    <div style={{ display: 'flex', gap: '2px', marginTop: 'auto', marginBottom: '2px' }}>
-                      {dayEvents.slice(0, 3).map((e, idx) => (
-                        <div
-                          key={idx}
-                          style={{
-                            width: '5px',
-                            height: '5px',
-                            borderRadius: '50%',
-                            backgroundColor: isSelected ? '#000' : (e.color || '#00B4D8')
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  {/* Day Events Stack */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.3rem', overflow: 'hidden' }}>
+                    {dayEvents.slice(0, 3).map((evt) => (
+                      <div
+                        key={evt.id}
+                        onClick={(e) => { e.stopPropagation(); setViewEvent(evt); }}
+                        style={{
+                          background: evt.color || 'var(--color-accent)',
+                          color: '#fff',
+                          fontSize: '0.7rem',
+                          padding: '0.15rem 0.35rem',
+                          borderRadius: '3px',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          fontWeight: 500
+                        }}
+                      >
+                        {evt.title}
+                      </div>
+                    ))}
+                    {dayEvents.length > 3 && (
+                      <span style={{ fontSize: '0.68rem', color: 'var(--color-accent)', fontWeight: 600 }}>
+                        + {dayEvents.length - 3}건 더보기
+                      </span>
+                    )}
+                  </div>
+
                 </div>
               );
             })}
-          </div>
 
-          <div style={{ marginTop: '1.2rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', fontSize: '0.8rem', color: '#aaa', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <span>🔴 SQLite DB 실시간 쿼리 연동 완료</span>
-            <span>선택일: <strong>{currentMonth}월 {selectedDay}일</strong></span>
           </div>
         </div>
+      )}
 
-        {/* Schedule List Panel */}
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <h2 className="panel-title">📌 {currentYear}년 {currentMonth}월 일정 목록 (DB 실시간)</h2>
-              <div style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '0.2rem' }}>
-                {filterBySelectedDayOnly ? `${currentMonth}월 ${selectedDay}일 일정` : selectedCategory !== '전체' ? `[${selectedCategory}] ${selectedWorkSubCategory !== '전체' ? '> ' + selectedWorkSubCategory : ''} 일정` : `${currentYear}년 ${currentMonth}월 전체 일정`} ({filteredEvents.length}건)
-              </div>
-            </div>
-            {filterBySelectedDayOnly && (
-              <button
-                onClick={() => setFilterBySelectedDayOnly(false)}
-                className="btn btn-secondary"
-                style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
-              >
-                월 전체보기 ✕
-              </button>
-            )}
-          </div>
+      {/* Selected Day Agenda List */}
+      <div className="panel">
+        <div className="panel-header">
+          <h2 className="panel-title">
+            📋 {currentYear}년 {currentMonth}월 {selectedDay}일 상세 일정 및 작업 목록 ({filteredEvents.filter(e => isEventOnDate(e, selectedDateStr)).length}건)
+          </h2>
+          <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+            선택한 날짜: <strong style={{ color: '#fff' }}>{selectedDateStr}</strong>
+          </span>
+        </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {filteredEvents.length > 0 ? (
-              filteredEvents.map((evt) => (
-                <div key={evt.id} style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  borderLeft: `4px solid ${evt.color || '#00B4D8'}`,
-                  padding: '1.2rem',
-                  borderRadius: '10px',
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {filteredEvents.filter(e => isEventOnDate(e, selectedDateStr)).length > 0 ? (
+            filteredEvents.filter(e => isEventOnDate(e, selectedDateStr)).map((evt) => (
+              <div
+                key={evt.id}
+                onClick={() => setViewEvent(evt)}
+                style={{
+                  background: 'var(--bg-main)',
+                  border: `1px solid ${evt.color || 'var(--border-color)'}`,
+                  borderLeft: `5px solid ${evt.color || 'var(--color-accent)'}`,
+                  borderRadius: '8px',
+                  padding: '1rem',
                   display: 'flex',
-                  justifyContent: 'space-between',
+                  justify: 'space-between',
                   alignItems: 'center',
-                  gap: '1rem'
-                }}>
-                  <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setViewEvent(evt)}>
-                    {/* Badges */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
-                      <span style={{
-                        fontSize: '0.78rem',
-                        fontWeight: 700,
-                        backgroundColor: `${evt.color || '#00B4D8'}25`,
-                        color: evt.color || '#00B4D8',
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '4px',
-                        border: `1px solid ${evt.color || '#00B4D8'}60`
-                      }}>
-                        {evt.type}
-                      </span>
-                      <span style={{ fontSize: '0.75rem', color: '#aaa' }}>▶</span>
-                      <span style={{
-                        fontSize: '0.78rem',
-                        fontWeight: 600,
-                        backgroundColor: 'rgba(255,255,255,0.08)',
-                        color: '#fff',
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '4px'
-                      }}>
-                        {evt.workType || evt.type}
-                      </span>
-                      <span style={{ fontSize: '0.85rem', color: 'var(--color-accent)', fontWeight: 600, marginLeft: '0.4rem' }}>
-                        {evt.periodText ? `📅 ${evt.periodText}` : `${evt.date} (${evt.time})`}
-                      </span>
-                    </div>
-
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.3rem', color: '#fff' }}>
+                  cursor: 'pointer',
+                  flexWrap: 'wrap',
+                  gap: '0.5rem'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <span className="badge" style={{ background: evt.color || 'var(--color-primary)', color: '#fff', fontSize: '0.75rem', fontWeight: 700 }}>
+                      {evt.type}
+                    </span>
+                    <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-accent)', fontSize: '0.75rem' }}>
+                      {evt.workType}
+                    </span>
+                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#fff', margin: 0 }}>
                       {evt.title}
                     </h3>
-
-                    <div style={{ fontSize: '0.82rem', color: '#aaa', display: 'flex', gap: '1.2rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
-                      <span>📍 고객사(사이트명): <strong style={{ color: '#fff' }}>{evt.location}</strong></span>
-                      <span>
-                        👷 작업자: {evt.workers && evt.workers.length > 0 ? (
-                          evt.workers.map((w, i) => (
-                            <span key={i} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.1rem 0.4rem', borderRadius: '4px', marginLeft: '0.2rem', fontWeight: 600 }}>
-                              {w}
-                            </span>
-                          ))
-                        ) : (
-                          <span style={{ color: '#fff' }}>{evt.assignee}</span>
-                        )}
-                      </span>
-                    </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                    <button
-                      onClick={() => setViewEvent(evt)}
-                      className="btn btn-secondary"
-                      style={{ padding: '0.35rem 0.7rem', fontSize: '0.78rem' }}
-                    >
-                      🔍 상세
-                    </button>
+                  <div style={{ fontSize: '0.82rem', color: '#8D99AE', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    <span>📍 장소: <strong style={{ color: '#fff' }}>{evt.location}</strong></span>
+                    <span>⏰ 시간: {evt.time}</span>
+                    <span>📅 기간: {evt.periodText}</span>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#aaa', background: 'rgba(0,0,0,0.1)', borderRadius: '10px' }}>
-                <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📭</div>
-                <p style={{ fontSize: '0.95rem' }}>{currentYear}년 {currentMonth}월에 해당하는 등록된 일정이 없습니다.</p>
-              </div>
-            )}
-          </div>
-        </div>
 
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                    {(evt.workers && evt.workers.length > 0 ? evt.workers : [evt.assignee]).map((w, idx) => (
+                      <span key={idx} style={{ fontSize: '0.75rem', background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                        👤 {w}
+                      </span>
+                    ))}
+                  </div>
+                  <button className="btn btn-secondary" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}>
+                    🔍 상세
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: '2.5rem', textAlign: 'center', color: '#8D99AE', background: 'var(--bg-main)', borderRadius: '8px' }}>
+              {selectedDateStr} 날짜에 배정된 일정이나 작업이 없습니다.
+            </div>
+          )}
+        </div>
       </div>
+
     </div>
   );
 }

@@ -5,12 +5,11 @@ import { useAuth } from '../context/AuthContext';
 
 const INITIAL_TICKETS = [];
 
-const COMPANY_WORKERS = ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
-
 export default function MaintenancePage() {
   const { currentUser } = useAuth();
 
   const [tickets, setTickets] = useState(INITIAL_TICKETS);
+  const [registeredUsers, setRegisteredUsers] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
   const [urgencyFilter, setUrgencyFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,11 +26,17 @@ export default function MaintenancePage() {
   const [formCategory, setFormCategory] = useState('네트워크 장애');
   const [formUrgency, setFormUrgency] = useState('긴급');
   const [formStatus, setFormStatus] = useState('접수');
-  const [formWorkers, setFormWorkers] = useState(['최현우 과장']);
+  const [formWorkers, setFormWorkers] = useState([]);
+  const [formCustomWorker, setFormCustomWorker] = useState('');
   const [formResolutionNote, setFormResolutionNote] = useState('');
-  const [formDate, setFormDate] = useState('2026-08-19');
+  const [formDate, setFormDate] = useState('');
 
-  // Fetch maintenance tickets from real SQLite DB
+  // Fetch maintenance tickets & registered users
+  useEffect(() => {
+    fetchTicketsFromAPI();
+    fetchUsersFromAPI();
+  }, []);
+
   const fetchTicketsFromAPI = async () => {
     try {
       const res = await fetch('/api/maintenance');
@@ -44,9 +49,22 @@ export default function MaintenancePage() {
     }
   };
 
-  useEffect(() => {
-    fetchTicketsFromAPI();
-  }, []);
+  const fetchUsersFromAPI = async () => {
+    try {
+      const res = await fetch('/api/auth/users');
+      if (res.ok) {
+        const data = await res.json();
+        setRegisteredUsers(data || []);
+      }
+    } catch (e) {
+      console.warn('Fetch users error', e);
+    }
+  };
+
+  // List of available workers built from registered database users
+  const workerList = registeredUsers.length > 0
+    ? registeredUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim())
+    : ['이강욱 팀장', '마스터 관리자', '김철수 과장', '박민우 대리', '최현우 과장'];
 
   // Open Create Modal
   const handleOpenCreateModal = () => {
@@ -57,7 +75,8 @@ export default function MaintenancePage() {
     setFormCategory('네트워크 장애');
     setFormUrgency('긴급');
     setFormStatus('접수');
-    setFormWorkers([currentUser?.name || currentUser?.id || '담당자']);
+    setFormWorkers([currentUser?.name || workerList[0] || '담당자']);
+    setFormCustomWorker('');
     setFormResolutionNote('');
     setFormDate(new Date().toISOString().split('T')[0]);
     setIsModalOpen(true);
@@ -73,9 +92,28 @@ export default function MaintenancePage() {
     setFormUrgency(tck.priority || tck.urgency || '보통');
     setFormStatus(tck.status);
     setFormWorkers(tck.workers || []);
+    setFormCustomWorker('');
     setFormResolutionNote(tck.resolutionNote || '');
     setFormDate(tck.date || new Date().toISOString().split('T')[0]);
     setIsModalOpen(true);
+  };
+
+  // Worker Toggle
+  const handleWorkerToggle = (workerName) => {
+    if (formWorkers.includes(workerName)) {
+      if (formWorkers.length === 1) return;
+      setFormWorkers(formWorkers.filter(w => w !== workerName));
+    } else {
+      setFormWorkers([...formWorkers, workerName]);
+    }
+  };
+
+  // Add Custom Worker
+  const handleAddCustomWorker = () => {
+    if (!formCustomWorker.trim()) return;
+    if (formWorkers.includes(formCustomWorker.trim())) return;
+    setFormWorkers([...formWorkers, formCustomWorker.trim()]);
+    setFormCustomWorker('');
   };
 
   // Save Ticket
@@ -93,7 +131,7 @@ export default function MaintenancePage() {
       category: formCategory,
       priority: formUrgency,
       status: formStatus,
-      workers: formWorkers,
+      workers: formWorkers.length > 0 ? formWorkers : [currentUser?.name || '담당자'],
       resolutionNote: formResolutionNote.trim(),
       date: formDate
     };
@@ -147,6 +185,7 @@ export default function MaintenancePage() {
       (t.site || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (t.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (t.engineer || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.workers || []).some(w => w.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (t.id || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     return statusMatch && urgencyMatch && searchMatch;
@@ -154,115 +193,98 @@ export default function MaintenancePage() {
 
   return (
     <div>
-      {/* Header */}
+      {/* Top Header */}
       <header className="portal-header" style={{ marginBottom: '1.2rem' }}>
         <div>
-          <h1 className="portal-title">🛠️ 유지보수 / 장애처리 센터</h1>
-          <p className="portal-subtitle">장애 접수 시 [일정 관리] 캘린더 자동 동기화 및 24시간 현장 처리 지원</p>
+          <h1 className="portal-title">🛠️ 유지보수 & 장애 관리 센터</h1>
+          <p className="portal-subtitle">고객사 24시간 긴급 출동, 네트워크 장애 조치 및 정기점검 티켓 관리</p>
         </div>
-        <button className="btn btn-accent" onClick={handleOpenCreateModal}>⚡ 긴급 장애 / 유지보수 접수</button>
+        <button onClick={handleOpenCreateModal} className="btn btn-accent" style={{ padding: '0.65rem 1.2rem', fontWeight: 600 }}>
+          🚨 긴급 장애 / 유지보수 접수
+        </button>
       </header>
 
-      {/* Filter Tabs & Search Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      {/* Filter Toolbar */}
+      <div className="panel" style={{ padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         
         {/* Status Tabs */}
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-          <button 
-            className={`btn ${activeTab === 'all' ? 'btn-accent' : 'btn-secondary'}`}
-            onClick={() => setActiveTab('all')}
-            style={{ fontSize: '0.85rem' }}
-          >
-            전체 티켓 ({tickets.length})
-          </button>
-          <button 
-            className={`btn ${activeTab === 'pending' ? 'btn-accent' : 'btn-secondary'}`}
-            onClick={() => setActiveTab('pending')}
-            style={{ fontSize: '0.85rem' }}
-          >
-            ⚡ 처리 대기/진행 중 ({tickets.filter(t => t.status !== '처리완료').length})
-          </button>
-          <button 
-            className={`btn ${activeTab === '처리완료' ? 'btn-accent' : 'btn-secondary'}`}
-            onClick={() => setActiveTab('처리완료')}
-            style={{ fontSize: '0.85rem' }}
-          >
-            ✅ 완료된 장애 ({tickets.filter(t => t.status === '처리완료').length})
-          </button>
+          <button onClick={() => setActiveTab('all')} className={`btn ${activeTab === 'all' ? 'btn-accent' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}>전체 티켓</button>
+          <button onClick={() => setActiveTab('pending')} className={`btn ${activeTab === 'pending' ? 'btn-accent' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}>미완료 티켓</button>
+          <button onClick={() => setActiveTab('접수')} className={`btn ${activeTab === '접수' ? 'btn-accent' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}>접수</button>
+          <button onClick={() => setActiveTab('이동중')} className={`btn ${activeTab === '이동중' ? 'btn-accent' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}>이동중</button>
+          <button onClick={() => setActiveTab('처리중')} className={`btn ${activeTab === '처리중' ? 'btn-accent' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}>처리중</button>
+          <button onClick={() => setActiveTab('처리완료')} className={`btn ${activeTab === '처리완료' ? 'btn-accent' : 'btn-secondary'}`} style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}>처리완료</button>
         </div>
 
-        {/* Urgency & Search */}
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <select
-            value={urgencyFilter}
-            onChange={(e) => setUrgencyFilter(e.target.value)}
-            style={{ padding: '0.5rem 0.8rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--border-color)', color: 'white', fontSize: '0.82rem' }}
-          >
-            <option value="all">긴급도 전체</option>
-            <option value="긴급">⚡ 긴급 (즉시 출동)</option>
-            <option value="보통">● 보통</option>
-            <option value="낮음">● 낮음</option>
+        {/* Search & Urgency Filters */}
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+          <select value={urgencyFilter} onChange={e => setUrgencyFilter(e.target.value)} style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.82rem' }}>
+            <option value="all">전체 긴급도</option>
+            <option value="긴급">🔴 긴급</option>
+            <option value="보통">🟡 보통</option>
           </select>
-
           <input
             type="text"
+            placeholder="사이트명, 제목, 엔지니어 검색..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="사이트명/티켓번호/엔지니어 검색..."
-            style={{ padding: '0.5rem 0.8rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white', fontSize: '0.82rem', width: '220px' }}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ padding: '0.45rem 0.85rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.82rem', width: '220px' }}
           />
         </div>
+
       </div>
 
       {/* Create / Edit Modal */}
       {isModalOpen && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(5px)',
-          zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
-        }}>
-          <div className="panel" style={{ width: '100%', maxWidth: '620px', background: 'var(--bg-card)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <div className="panel-header">
-              <h2 className="panel-title">{editingTicket ? '✏️ 장애 티켓 & 조치 상태 수정' : '⚡ 긴급 장애 / 유지보수 접수'}</h2>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '620px', maxHeight: '92vh', overflowY: 'auto', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <h2 className="panel-title" style={{ fontSize: '1.15rem', color: '#fff' }}>
+                {editingTicket ? '✏️ 유지보수 티켓 수정' : '🚨 긴급 장애 / 유지보수 티켓 접수'}
+              </h2>
+              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
             </div>
 
             <form onSubmit={handleSaveSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>사이트명 / 고객사 *</label>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>고객사 / 사이트명 *</label>
                 <input
                   type="text"
+                  required
+                  placeholder="예: [아인스텍 본사] 3층 서버실"
                   value={formSite}
                   onChange={(e) => setFormSite(e.target.value)}
-                  placeholder="사이트명 / 고객사명을 입력하세요"
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>접수 제목 *</label>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>장애 접수 제목 *</label>
                 <input
                   type="text"
+                  required
+                  placeholder="예: 메인 백본 스위치 포트 핑 손실 및 랙 전원 다운"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="장애 / 출동 접수 제목을 입력하세요"
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.8rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>유지보수 구분</label>
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--border-color)', color: 'white' }}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                   >
-                    <option value="네트워크 장애">🚨 네트워크 장애</option>
-                    <option value="IPT 장애">🚨 IPT 장애</option>
-                    <option value="네트워크 유지보수">🛠️ 네트워크 유지보수</option>
-                    <option value="IPT 유지보수">⚙️ IPT 유지보수</option>
-                    <option value="H/W 및 주변기기 수리">🔧 H/W 및 주변기기 수리</option>
+                    <option value="네트워크 장애">네트워크 장애</option>
+                    <option value="IPT 전화 장애">IPT 전화 장애</option>
+                    <option value="서버/UTM 점검">서버/UTM 점검</option>
+                    <option value="정기 점검">정기 점검</option>
+                    <option value="기타 긴급 조치">기타 긴급 조치</option>
                   </select>
                 </div>
 
@@ -271,11 +293,10 @@ export default function MaintenancePage() {
                   <select
                     value={formUrgency}
                     onChange={(e) => setFormUrgency(e.target.value)}
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--border-color)', color: formUrgency === '긴급' ? '#E63946' : 'white', fontWeight: 700 }}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                   >
-                    <option value="긴급">⚡ 긴급 (즉시출동)</option>
-                    <option value="보통">● 보통</option>
-                    <option value="낮음">● 낮음</option>
+                    <option value="긴급">🔴 긴급</option>
+                    <option value="보통">🟡 보통</option>
                   </select>
                 </div>
 
@@ -284,7 +305,7 @@ export default function MaintenancePage() {
                   <select
                     value={formStatus}
                     onChange={(e) => setFormStatus(e.target.value)}
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--color-accent)', color: 'white', fontWeight: 700 }}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--color-accent)', color: 'white', fontWeight: 700 }}
                   >
                     <option value="접수">접수</option>
                     <option value="이동중">이동중</option>
@@ -295,20 +316,22 @@ export default function MaintenancePage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>접수 날짜 (일정 자동 동기화 날짜)</label>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>접수/조치 일자 (일정 자동연동)</label>
                 <input
                   type="date"
                   value={formDate}
                   onChange={(e) => setFormDate(e.target.value)}
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
               </div>
 
-              {/* Workers Multi-Selection */}
+              {/* Real Registered Users Selection for Workers */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.4rem' }}>👷 담당 엔지니어 및 출동자 배정</label>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {COMPANY_WORKERS.map(w => {
+                <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--color-accent)', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  👷 담당 엔지니어 및 출동자 배정 (등록 회원 선택)
+                </label>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+                  {workerList.map(w => {
                     const isSelected = formWorkers.includes(w);
                     return (
                       <button
@@ -319,7 +342,7 @@ export default function MaintenancePage() {
                           padding: '0.35rem 0.75rem',
                           borderRadius: '20px',
                           border: isSelected ? '1px solid var(--color-accent)' : '1px solid var(--border-color)',
-                          background: isSelected ? 'rgba(0,180,216,0.2)' : 'rgba(255,255,255,0.05)',
+                          background: isSelected ? 'rgba(0,180,216,0.25)' : 'rgba(255,255,255,0.05)',
                           color: isSelected ? '#00B4D8' : '#aaa',
                           fontSize: '0.8rem',
                           fontWeight: isSelected ? 700 : 400,
@@ -331,6 +354,25 @@ export default function MaintenancePage() {
                     );
                   })}
                 </div>
+
+                {/* External Custom Worker Add */}
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <input
+                    type="text"
+                    placeholder="외부/협력사 출동자 직접 입력..."
+                    value={formCustomWorker}
+                    onChange={(e) => setFormCustomWorker(e.target.value)}
+                    style={{ flex: 1, padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCustomWorker}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '0.45rem 0.8rem' }}
+                  >
+                    추가
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -340,7 +382,7 @@ export default function MaintenancePage() {
                   value={formIssue}
                   onChange={(e) => setFormIssue(e.target.value)}
                   placeholder="현장 장애 현상이나 점검 상세 내용을 작성하세요..."
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white', resize: 'vertical' }}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white', resize: 'vertical' }}
                 ></textarea>
               </div>
 
@@ -351,7 +393,7 @@ export default function MaintenancePage() {
                   value={formResolutionNote}
                   onChange={(e) => setFormResolutionNote(e.target.value)}
                   placeholder="현장 조치 내용 및 부품 교체 내역 등 결과 작성..."
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(0,180,216,0.05)', border: '1px solid rgba(0,180,216,0.3)', color: 'white', resize: 'vertical' }}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(0,180,216,0.05)', border: '1px solid rgba(0,180,216,0.3)', color: 'white', resize: 'vertical' }}
                 ></textarea>
               </div>
 
@@ -366,22 +408,19 @@ export default function MaintenancePage() {
 
       {/* Detail Viewer Drawer */}
       {viewTicket && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(5px)',
-          zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
-        }}>
-          <div className="panel" style={{ width: '100%', maxWidth: '650px', background: 'var(--bg-card)' }}>
-            <div className="panel-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1rem' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
               <div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.4rem' }}>
-                  <span style={{ fontWeight: 700, color: 'var(--color-accent)', fontSize: '0.9rem' }}>{viewTicket.id}</span>
-                  <span className={`badge ${viewTicket.badgeClass}`}>{viewTicket.status}</span>
-                  <span style={{ fontSize: '0.78rem', color: viewTicket.urgency === '긴급' ? '#E63946' : '#FFB703', fontWeight: 700 }}>
-                    ⚡ {viewTicket.urgency}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                  <span className="badge" style={{ background: 'var(--color-primary)', color: '#fff', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                    {viewTicket.ticketNo || viewTicket.id}
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: (viewTicket.priority || viewTicket.urgency) === '긴급' ? '#E63946' : '#FFB703', fontWeight: 700 }}>
+                    ⚡ {viewTicket.priority || viewTicket.urgency}
                   </span>
                 </div>
-                <h2 className="panel-title" style={{ fontSize: '1.3rem', color: '#fff' }}>{viewTicket.title}</h2>
+                <h2 className="panel-title" style={{ fontSize: '1.2rem', color: '#fff' }}>{viewTicket.title}</h2>
                 <div style={{ fontSize: '0.85rem', color: '#aaa', marginTop: '0.3rem' }}>사이트명: <strong style={{ color: '#fff' }}>{viewTicket.site}</strong></div>
               </div>
               <button onClick={() => setViewTicket(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
@@ -389,14 +428,14 @@ export default function MaintenancePage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem', background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '10px' }}>
-                <div><span style={{ color: '#aaa' }}>유지보수 구분:</span> <strong>{viewTicket.category}</strong></div>
-                <div><span style={{ color: '#aaa' }}>접수 일시:</span> <strong>{viewTicket.time}</strong></div>
+                <div><span style={{ color: '#aaa' }}>구분:</span> <strong>{viewTicket.category}</strong></div>
+                <div><span style={{ color: '#aaa' }}>일시:</span> <strong>{viewTicket.date}</strong></div>
               </div>
 
               <div>
-                <span style={{ color: '#aaa', display: 'block', marginBottom: '0.4rem' }}>👷 담당 엔지니어 & 출동자:</span>
+                <span style={{ color: '#aaa', display: 'block', marginBottom: '0.4rem' }}>👷 담당 엔지니어 및 출동자:</span>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  {(viewTicket.workers || [viewTicket.engineer]).map((w, i) => (
+                  {(Array.isArray(viewTicket.workers) && viewTicket.workers.length > 0 ? viewTicket.workers : [viewTicket.engineer || '담당자']).map((w, i) => (
                     <span key={i} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.29rem 0.6rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}>
                       👤 {w}
                     </span>
@@ -404,10 +443,12 @@ export default function MaintenancePage() {
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid #E63946' }}>
-                <span style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>🚨 장애 및 점검 상세 내용:</span>
-                <p style={{ color: '#ddd', fontSize: '0.88rem', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{viewTicket.issue}</p>
-              </div>
+              {viewTicket.issue && (
+                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid #E63946' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>🚨 장애 및 점검 상세 내용:</span>
+                  <p style={{ color: '#ddd', fontSize: '0.88rem', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{viewTicket.issue}</p>
+                </div>
+              )}
 
               {viewTicket.resolutionNote && (
                 <div style={{ background: 'rgba(56,176,0,0.08)', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid #38B000' }}>
@@ -437,26 +478,23 @@ export default function MaintenancePage() {
             <tr>
               <th>티켓 번호</th>
               <th>사이트명</th>
-              <th>장애 및 점검 상세 내용</th>
+              <th>장애 접수 제목</th>
               <th>구분</th>
               <th>긴급도</th>
               <th>담당 엔지니어</th>
-              <th>접수시간</th>
+              <th>일시</th>
               <th>상태</th>
               <th style={{ width: '130px', textAlign: 'center' }}>관리</th>
             </tr>
           </thead>
           <tbody>
             {filteredTickets.length > 0 ? (
-              filteredTickets.map((t) => (
+              filteredTickets.map(t => (
                 <tr key={t.id}>
-                  <td style={{ fontWeight: 700, color: 'var(--color-accent)', cursor: 'pointer' }} onClick={() => setViewTicket(t)}>
-                    {t.id}
-                  </td>
-                  <td style={{ fontWeight: 600, color: '#fff' }}>{t.site}</td>
-                  <td style={{ cursor: 'pointer' }} onClick={() => setViewTicket(t)}>
-                    <div style={{ fontWeight: 600 }}>{t.title}</div>
-                    <div style={{ fontSize: '0.78rem', color: '#aaa', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }}>{t.issue}</div>
+                  <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem' }}>{t.ticketNo || t.id}</td>
+                  <td style={{ fontWeight: 600 }}>{t.site}</td>
+                  <td>
+                    <div style={{ fontWeight: 600, color: '#fff' }}>{t.title}</div>
                   </td>
                   <td>
                     <span style={{ fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
@@ -466,15 +504,23 @@ export default function MaintenancePage() {
                   <td>
                     <span style={{ 
                       fontSize: '0.78rem',
-                      color: t.urgency === '긴급' ? '#E63946' : t.urgency === '보통' ? '#FFB703' : '#aaa',
+                      color: (t.priority || t.urgency) === '긴급' ? '#E63946' : '#FFB703',
                       fontWeight: 700 
                     }}>
-                      ● {t.urgency}
+                      ● {t.priority || t.urgency || '보통'}
                     </span>
                   </td>
-                  <td style={{ fontSize: '0.85rem' }}>{t.engineer}</td>
-                  <td style={{ fontSize: '0.78rem', color: '#aaa' }}>{t.time}</td>
-                  <td><span className={`badge ${t.badgeClass}`}>{t.status}</span></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                      {(Array.isArray(t.workers) && t.workers.length > 0 ? t.workers : [t.engineer || '담당자']).map((w, idx) => (
+                        <span key={idx} style={{ fontSize: '0.75rem', background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
+                          {w}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td style={{ fontSize: '0.78rem', color: '#aaa' }}>{t.date}</td>
+                  <td><span className={`badge ${t.badgeClass || (t.status === '처리완료' ? 'badge-active' : 'badge-pending')}`}>{t.status}</span></td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
                       <button onClick={() => setViewTicket(t)} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>

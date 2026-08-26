@@ -12,6 +12,7 @@ export default function NetworkPage() {
   const { currentUser } = useAuth();
 
   const [items, setItems] = useState(INITIAL_NETWORK_ITEMS);
+  const [registeredUsers, setRegisteredUsers] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -34,9 +35,10 @@ export default function NetworkPage() {
   const [formCustomWorker, setFormCustomWorker] = useState('');
   const [formContent, setFormContent] = useState('');
 
-  // Fetch from Real Backend SQLite API `/api/network`
+  // Fetch from Real Backend SQLite API `/api/network` & `/api/auth/users`
   useEffect(() => {
     fetchItemsFromAPI();
+    fetchUsersFromAPI();
   }, []);
 
   const fetchItemsFromAPI = async () => {
@@ -53,6 +55,22 @@ export default function NetworkPage() {
     }
     setItems([]);
   };
+
+  const fetchUsersFromAPI = async () => {
+    try {
+      const res = await fetch('/api/auth/users');
+      if (res.ok) {
+        const data = await res.json();
+        setRegisteredUsers(data || []);
+      }
+    } catch (e) {
+      console.warn('Fetch users error', e);
+    }
+  };
+
+  const workerList = registeredUsers.length > 0
+    ? registeredUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim())
+    : COMPANY_WORKERS;
 
   const saveItems = (newItems) => {
     setItems(newItems);
@@ -401,7 +419,7 @@ export default function NetworkPage() {
                   👷 작업자 배정 (Workers)
                 </label>
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
-                  {COMPANY_WORKERS.map(w => {
+                  {workerList.map(w => {
                     const isSelected = formWorkers.includes(w);
                     return (
                       <button
