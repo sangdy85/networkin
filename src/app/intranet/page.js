@@ -12,7 +12,8 @@ const CATEGORIES = [
   'VPN/원격접속',
   '사내 Wi-Fi/AP',
   '스위치/라우터 설정',
-  '운영 매뉴얼'
+  '운영 매뉴얼',
+  '패스워드 관리'
 ];
 
 const SECURITY_LEVELS = ['사내전용', '대외비', '일반'];
@@ -340,6 +341,7 @@ export default function IntranetPage() {
       case '사내 Wi-Fi/AP': return '📶';
       case '스위치/라우터 설정': return '⚙️';
       case '운영 매뉴얼': return '📖';
+      case '패스워드 관리': return '🔑';
       default: return '🖥️';
     }
   };
