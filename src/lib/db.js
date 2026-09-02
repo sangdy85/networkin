@@ -137,6 +137,7 @@ db.exec(`
     unread INTEGER DEFAULT 1,
     is_external INTEGER DEFAULT 0,
     has_attachment INTEGER DEFAULT 0,
+    owner_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -292,6 +293,16 @@ try {
   `);
 } catch (e) {
   console.warn('Migration error for intranet_docs:', e.message);
+}
+
+// Migration helper for mails
+try {
+  const mailCols = db.prepare("PRAGMA table_info(mails)").all();
+  if (!mailCols.some(c => c.name === 'owner_id')) {
+    db.exec("ALTER TABLE mails ADD COLUMN owner_id TEXT");
+  }
+} catch (e) {
+  console.warn('Migration error for mails:', e.message);
 }
 
 export default db;

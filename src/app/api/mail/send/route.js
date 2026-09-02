@@ -6,7 +6,8 @@ import { NextResponse } from 'next/server';
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { host, port, user, pass, to, subject, content } = body;
+    const { host, port, user, pass, to, subject, content, userId, ownerId } = body;
+    const targetOwner = ownerId || userId || null;
 
     if (!to || !subject || !content) {
       return NextResponse.json({ error: '수신자, 제목, 내용을 모두 입력해 주세요.' }, { status: 400 });
@@ -49,8 +50,8 @@ export async function POST(req) {
     // Save to sent folder in SQLite DB
     const mailId = `SENT-${Date.now()}`;
     const stmt = db.prepare(`
-      INSERT INTO mails (id, sender, sender_email, recipient, subject, snippet, content, date, folder, unread, is_external, has_attachment)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO mails (id, sender, sender_email, recipient, subject, snippet, content, date, folder, unread, is_external, has_attachment, owner_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const senderDisplay = user || '사내 발신자';
@@ -67,7 +68,8 @@ export async function POST(req) {
       'sent',
       0,
       host ? 1 : 0,
-      0
+      0,
+      targetOwner
     );
 
     if (smtpErrorMsg) {

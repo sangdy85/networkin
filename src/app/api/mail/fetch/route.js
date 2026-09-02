@@ -116,7 +116,9 @@ function fetchPop3RawEmails({ host, port, user, pass }) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { host, port, user, pass } = body;
+    const { host, port, user, pass, userId, ownerId } = body;
+
+    const targetOwner = ownerId || userId || null;
 
     if (!host || !user || !pass) {
       return NextResponse.json({ error: 'POP3 메일 서버 호스트, 아이디, 비밀번호를 설정해 주세요.' }, { status: 400 });
@@ -126,8 +128,8 @@ export async function POST(req) {
     const fetchedMails = [];
 
     const insertStmt = db.prepare(`
-      INSERT OR REPLACE INTO mails (id, sender, sender_email, recipient, subject, snippet, content, date, folder, unread, is_external, has_attachment)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO mails (id, sender, sender_email, recipient, subject, snippet, content, date, folder, unread, is_external, has_attachment, owner_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     for (let i = 0; i < rawMsgs.length; i++) {
@@ -155,7 +157,8 @@ export async function POST(req) {
           'inbox',
           1,
           1,
-          hasAttachment ? 1 : 0
+          hasAttachment ? 1 : 0,
+          targetOwner
         );
 
         fetchedMails.push({
@@ -168,7 +171,8 @@ export async function POST(req) {
           date: dateStr,
           unread: true,
           isExternal: true,
-          hasAttachment
+          hasAttachment,
+          ownerId: targetOwner
         });
       } catch (parseErr) {
         console.error('Mail parse error:', parseErr);

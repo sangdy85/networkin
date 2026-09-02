@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
 
 const INITIAL_SIGNATURES = [
   {
@@ -34,6 +35,7 @@ const PRESET_PROVIDERS = {
 };
 
 export default function MailPage() {
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState('inbox');
   const [selectedMail, setSelectedMail] = useState(null);
 
@@ -116,7 +118,8 @@ export default function MailPage() {
   // Load Mails and External Account Settings
   const fetchMailsFromAPI = async (folderName = activeTab) => {
     try {
-      const res = await fetch(`/api/mail?folder=${folderName}`);
+      const userParam = currentUser?.id ? `&userId=${encodeURIComponent(currentUser.id)}` : '';
+      const res = await fetch(`/api/mail?folder=${folderName}${userParam}`);
       if (res.ok) {
         const data = await res.json();
         setMails(data || []);
@@ -128,10 +131,17 @@ export default function MailPage() {
 
   useEffect(() => {
     fetchMailsFromAPI(activeTab);
-  }, [activeTab]);
+  }, [activeTab, currentUser]);
 
   useEffect(() => {
-    const savedAccount = localStorage.getItem('networkin_ext_mail_account');
+    if (!currentUser?.id) {
+      setExtEmail('');
+      setExtPassword('');
+      setIsAccountLinked(false);
+      return;
+    }
+    const storageKey = `networkin_ext_mail_account_${currentUser.id}`;
+    const savedAccount = localStorage.getItem(storageKey) || localStorage.getItem('networkin_ext_mail_account');
     if (savedAccount) {
       try {
         const parsed = JSON.parse(savedAccount);
@@ -144,12 +154,20 @@ export default function MailPage() {
         setExtOutgoingPort(parsed.outgoingPort || '465');
         if (parsed.email) setIsAccountLinked(true);
       } catch (e) {}
+    } else {
+      setExtEmail('');
+      setExtPassword('');
+      setIsAccountLinked(false);
     }
-  }, []);
+  }, [currentUser]);
 
   // Save External Account
   const handleSaveExternalAccount = (e) => {
     e.preventDefault();
+    if (!currentUser) {
+      alert('외부 메일 계정을 연동하려면 먼저 로그인해 주세요.');
+      return;
+    }
     if (!extEmail.trim() || !extPassword.trim()) {
       alert('외부 이메일 주소와 연동 비밀번호를 입력해 주세요.');
       return;
@@ -166,14 +184,19 @@ export default function MailPage() {
       linkedAt: new Date().toLocaleString()
     };
 
-    localStorage.setItem('networkin_ext_mail_account', JSON.stringify(accountInfo));
+    const storageKey = `networkin_ext_mail_account_${currentUser.id}`;
+    localStorage.setItem(storageKey, JSON.stringify(accountInfo));
     setIsAccountLinked(true);
     setIsExtModalOpen(false);
-    alert(`[${extEmail}] 외부 메일 계정 (POP3/SMTP) 연동 설정이 완료되었습니다!`);
+    alert(`[${extEmail}] (${currentUser.name} 계정) 외부 메일 계정 (POP3/SMTP) 연동 설정이 완료되었습니다!`);
   };
 
   // Sync External Emails via Real POP3 Server
   const handleSyncExternalMail = async () => {
+    if (!currentUser) {
+      alert('외부 메일을 가져오려면 먼저 로그인해 주세요.');
+      return;
+    }
     if (!extEmail.trim() || !extPassword.trim() || !extIncomingServer.trim()) {
       setIsExtModalOpen(true);
       alert('외부 메일을 수신하려면 [외부 메일 계정 연동 설정]에서 메일주소, 연동 비밀번호, POP3 서버 정보를 설정해 주세요.');
@@ -189,7 +212,8 @@ export default function MailPage() {
           host: extIncomingServer.trim(),
           port: extIncomingPort.trim(),
           user: extEmail.trim(),
-          pass: extPassword.trim()
+          pass: extPassword.trim(),
+          userId: currentUser.id
         })
       });
 
@@ -197,7 +221,7 @@ export default function MailPage() {
       if (!res.ok) {
         alert(data.error || '외부 메일 수신 중 오류가 발생했습니다.');
       } else {
-        alert(`🔄 외부 메일 연동 서버 (${extEmail})에서 신규 메일 ${data.count}건을 가져왔습니다!`);
+        alert(`🔄 외부 메일 연동 서버 (${extEmail})에서 신규 메일 ${data.count}건을 가져왔습니다! (소유자: ${currentUser.name})`);
         fetchMailsFromAPI(activeTab);
       }
     } catch (e) {
@@ -343,7 +367,8 @@ export default function MailPage() {
           pass: extPassword.trim(),
           to: recipient.trim(),
           subject: subject.trim(),
-          content: mailBody
+          content: mailBody,
+          userId: currentUser?.id
         })
       });
 
@@ -412,12 +437,13 @@ export default function MailPage() {
             연동 상태: {isAccountLinked ? '🟢 정상 연결됨' : '🔴 미연동'}
           </span>
           <span style={{ color: '#fff' }}>
-            현재 외부 연동 계정: <strong>{extEmail}</strong> (수신: {extIncomingServer}:{extIncomingPort} / 발신: {extOutgoingServer}:{extOutgoingPort})
+            접속 사용자: <strong>{currentUser ? `${currentUser.name} (${currentUser.id})` : '🔒 비로그인 (외부 메일 조회 불가)'}</strong>
+            {extEmail && ` | 연동 메일: ${extEmail}`}
           </span>
         </div>
 
-        <span style={{ fontSize: '0.78rem', color: '#aaa' }}>
-          💡 외부 고객사 및 Naver/Gmail 수발신 메일 자동 동기화 적용 중
+        <span style={{ fontSize: '0.78rem', color: '#64B5F6', fontWeight: 600 }}>
+          🔒 외부 수신 메일은 해당 메일을 가져온 로그인 계정만 조회 가능합니다.
         </span>
       </div>
 

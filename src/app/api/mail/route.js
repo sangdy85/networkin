@@ -1,13 +1,20 @@
 import db from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-// GET /api/mail - List all mails or filter by folder
+// GET /api/mail - List all mails or filter by folder & user owner
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
     const folder = searchParams.get('folder') || 'inbox';
+    const userId = searchParams.get('userId');
 
-    const rows = db.prepare('SELECT * FROM mails WHERE folder = ? ORDER BY created_at DESC').all(folder);
+    let rows;
+    if (userId) {
+      rows = db.prepare('SELECT * FROM mails WHERE folder = ? AND (is_external = 0 OR owner_id = ?) ORDER BY created_at DESC').all(folder, userId);
+    } else {
+      rows = db.prepare('SELECT * FROM mails WHERE folder = ? AND is_external = 0 ORDER BY created_at DESC').all(folder);
+    }
+
     const mails = rows.map(r => ({
       id: r.id,
       sender: r.sender,
@@ -20,6 +27,7 @@ export async function GET(req) {
       unread: Boolean(r.unread),
       isExternal: Boolean(r.is_external),
       hasAttachment: Boolean(r.has_attachment),
+      ownerId: r.owner_id || null,
       folder: r.folder
     }));
 
@@ -33,12 +41,13 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { id, sender, senderEmail, recipient, subject, snippet, content, date, folder, unread, isExternal, hasAttachment } = body;
+    const { id, sender, senderEmail, recipient, subject, snippet, content, date, folder, unread, isExternal, hasAttachment, userId, ownerId } = body;
 
+    const targetOwner = ownerId || userId || null;
     const mailId = id || `MAIL-${Date.now()}`;
     const stmt = db.prepare(`
-      INSERT OR REPLACE INTO mails (id, sender, sender_email, recipient, subject, snippet, content, date, folder, unread, is_external, has_attachment)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT OR REPLACE INTO mails (id, sender, sender_email, recipient, subject, snippet, content, date, folder, unread, is_external, has_attachment, owner_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -53,7 +62,8 @@ export async function POST(req) {
       folder || 'inbox',
       unread ? 1 : 0,
       isExternal ? 1 : 0,
-      hasAttachment ? 1 : 0
+      hasAttachment ? 1 : 0,
+      targetOwner
     );
 
     return NextResponse.json({ success: true, id: mailId });
