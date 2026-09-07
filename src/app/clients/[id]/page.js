@@ -14,6 +14,7 @@ export default function ClientDetailPage() {
 
   const [client, setClient] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState([]);
 
   // Active Tab: 'info' | 'history' | 'network' | 'docs' | 'inspections'
@@ -122,15 +123,17 @@ export default function ClientDetailPage() {
         const found = data.find(c => String(c.id) === String(clientId));
         if (found) {
           setClient(found);
+          setNotFound(false);
           initClientForms(found);
           fetchClientHistory(found.name);
         } else {
-          alert('존재하지 않는 고객사입니다.');
-          router.push('/clients');
+          setNotFound(true);
+          setClient(null);
         }
       }
     } catch (e) {
       console.error('Fetch client detail error', e);
+      setNotFound(true);
     } finally {
       setLoading(false);
     }
@@ -810,13 +813,28 @@ export default function ClientDetailPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '3rem', textAlign: 'center', color: '#aaa' }}>
+      <div style={{ padding: '4rem', textAlign: 'center', color: '#aaa' }}>
         고객사 상세 정보를 불러오는 중...
       </div>
     );
   }
 
-  if (!client) return null;
+  if (notFound || !client) {
+    return (
+      <div className="panel" style={{ padding: '4rem 2rem', textAlign: 'center', margin: '2rem 0' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+        <h2 style={{ fontSize: '1.4rem', color: '#E63946', marginBottom: '0.8rem', fontWeight: 800 }}>
+          요청하신 고객사 정보를 찾을 수 없습니다
+        </h2>
+        <p style={{ color: '#aaa', marginBottom: '1.75rem', fontSize: '0.95rem' }}>
+          고객사 ID(<strong>#{clientId}</strong>)가 존재하지 않거나 삭제되었을 수 있습니다.
+        </p>
+        <Link href="/clients" className="btn btn-accent" style={{ textDecoration: 'none', padding: '0.75rem 1.6rem', fontWeight: 700 }}>
+          📋 고객사 목록으로 돌아가기
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div>
