@@ -1049,7 +1049,7 @@ function ClientDetailPageComponent() {
           className={`btn ${activeTab === 'network' ? 'btn-accent' : 'btn-secondary'}`}
           style={{ fontSize: '0.9rem', padding: '0.6rem 1.25rem', fontWeight: 700 }}
         >
-          🌐 네트워크 회선 & 인프라 자산 관리
+          🌐 유지보수 대상 장비
         </button>
         <button
           onClick={() => setActiveTab('inspections')}
