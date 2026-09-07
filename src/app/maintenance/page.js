@@ -200,6 +200,7 @@ export default function MaintenancePage() {
 
       const ticketData = {
         id: editingTicket ? editingTicket.id : undefined,
+        ticketNo: editingTicket ? (editingTicket.ticketNo || editingTicket.id) : undefined,
         site: formSite.trim(),
         title: formTitle.trim(),
         category: formCategory,

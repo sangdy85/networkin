@@ -188,9 +188,9 @@ export async function PUT(req) {
 
     let sql = `
       UPDATE maintenance_tickets
-      SET ticket_no = ?, site = ?, title = ?, category = ?, priority = ?, status = ?, workers = ?, resolution_note = ?, date = ?
+      SET ticket_no = COALESCE(?, ticket_no), site = ?, title = ?, category = ?, priority = ?, status = ?, workers = ?, resolution_note = ?, date = ?
     `;
-    const params = [ticketNo, site, title, category, priority, status, JSON.stringify(workers || []), resolutionNote || '', date];
+    const params = [ticketNo || null, site, title, category, priority, status, JSON.stringify(workers || []), resolutionNote || '', date];
     
     if (savedFilePath !== undefined) {
       sql += `, file_name = ?, file_path = ?`;
