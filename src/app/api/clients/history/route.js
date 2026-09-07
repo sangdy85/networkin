@@ -28,7 +28,9 @@ export async function GET(request) {
           status: m.status,
           workers: workersArr,
           content: m.resolution_note || m.site,
-          badgeColor: m.priority === '긴급' ? '#E63946' : '#FF9F1C'
+          badgeColor: m.priority === '긴급' ? '#E63946' : '#FF9F1C',
+          fileName: m.file_name,
+          filePath: m.file_path
         });
       });
     } catch (e) {}

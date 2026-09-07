@@ -10,6 +10,7 @@ export default function MaintenancePage() {
 
   const [tickets, setTickets] = useState(INITIAL_TICKETS);
   const [registeredUsers, setRegisteredUsers] = useState([]);
+  const [clients, setClients] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
   const [urgencyFilter, setUrgencyFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,12 +31,27 @@ export default function MaintenancePage() {
   const [formCustomWorker, setFormCustomWorker] = useState('');
   const [formResolutionNote, setFormResolutionNote] = useState('');
   const [formDate, setFormDate] = useState('');
+  const [formFile, setFormFile] = useState(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   // Fetch maintenance tickets & registered users
   useEffect(() => {
     fetchTicketsFromAPI();
     fetchUsersFromAPI();
+    fetchClientsFromAPI();
   }, []);
+
+  const fetchClientsFromAPI = async () => {
+    try {
+      const res = await fetch('/api/clients');
+      if (res.ok) {
+        const data = await res.json();
+        setClients(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('Fetch clients error', e);
+    }
+  };
 
   const fetchTicketsFromAPI = async () => {
     try {
@@ -125,19 +141,42 @@ export default function MaintenancePage() {
       return;
     }
 
-    const ticketData = {
-      id: editingTicket ? editingTicket.id : undefined,
-      site: formSite.trim(),
-      title: formTitle.trim(),
-      category: formCategory,
-      priority: formUrgency,
-      status: formStatus,
-      workers: formWorkers.length > 0 ? formWorkers : [currentUser?.name || '담당자'],
-      resolutionNote: formResolutionNote.trim(),
-      date: formDate
-    };
+    setUploadingFile(true);
+    let fileName = null;
+    let filePath = null;
 
     try {
+      if (formFile) {
+        const formData = new FormData();
+        formData.append('file', formFile);
+        const uploadRes = await fetch('/api/clients/documents/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          fileName = uploadData.fileName;
+          filePath = uploadData.filePath;
+        } else {
+          throw new Error('첨부파일 업로드 실패');
+        }
+      }
+
+      const ticketData = {
+        id: editingTicket ? editingTicket.id : undefined,
+        site: formSite.trim(),
+        title: formTitle.trim(),
+        category: formCategory,
+        priority: formUrgency,
+        status: formStatus,
+        workers: formWorkers.length > 0 ? formWorkers : [currentUser?.name || '담당자'],
+        resolutionNote: formResolutionNote.trim(),
+        date: formDate,
+        fileName,
+        filePath
+      };
+
       const method = editingTicket ? 'PUT' : 'POST';
       const res = await fetch('/api/maintenance', {
         method,
@@ -145,16 +184,19 @@ export default function MaintenancePage() {
         body: JSON.stringify(ticketData)
       });
 
-      const data = await res.json();
       if (res.ok) {
         alert(editingTicket ? '장애 처리 티켓 정보가 수정되었습니다.' : '긴급 장애/유지보수 티켓이 접수되었습니다.');
         setIsModalOpen(false);
         fetchTicketsFromAPI();
       } else {
-        alert(`티켓 저장 실패: ${data.error}`);
+        const err = await res.json();
+        alert(err.error || '저장에 실패했습니다.');
       }
-    } catch (err) {
-      alert(`티켓 저장 오류: ${err.message}`);
+    } catch (e) {
+      alert(e.message || '저장에 실패했습니다.');
+      console.error(e);
+    } finally {
+      setUploadingFile(false);
     }
   };
 
@@ -254,11 +296,17 @@ export default function MaintenancePage() {
                 <input
                   type="text"
                   required
-                  placeholder="예: [아인스텍 본사] 3층 서버실"
+                  list="clients-list"
+                  placeholder="예: [아인스텍 본사] 3층 서버실 (직접 입력 또는 선택)"
                   value={formSite}
                   onChange={(e) => setFormSite(e.target.value)}
                   style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
+                <datalist id="clients-list">
+                  {clients.map(c => (
+                    <option key={c.id} value={c.name} />
+                  ))}
+                </datalist>
               </div>
 
               <div>
@@ -388,6 +436,20 @@ export default function MaintenancePage() {
               </div>
 
               <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>📁 첨부파일 (점검 보고서 등)</label>
+                <input
+                  type="file"
+                  onChange={(e) => setFormFile(e.target.files[0])}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                />
+                {editingTicket && editingTicket.fileName && (
+                  <p style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '0.3rem' }}>
+                    기존 첨부파일: <a href={editingTicket.filePath} target="_blank" rel="noreferrer" style={{ color: '#00B4D8' }}>{editingTicket.fileName}</a>
+                  </p>
+                )}
+              </div>
+
+              <div>
                 <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--color-accent)', fontWeight: 600, marginBottom: '0.3rem' }}>💡 조치 결과 및 완료 보고서 (처리완료 시)</label>
                 <textarea
                   rows={3}
@@ -400,7 +462,7 @@ export default function MaintenancePage() {
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">취소</button>
-                <button type="submit" className="btn btn-accent">{editingTicket ? '수정 완료' : '티켓 접수 (일정 자동연동)'}</button>
+                <button type="submit" disabled={uploadingFile} className="btn btn-accent">{uploadingFile ? '업로드 중...' : (editingTicket ? '수정 완료' : '티켓 접수 (일정 자동연동)')}</button>
               </div>
             </form>
           </div>

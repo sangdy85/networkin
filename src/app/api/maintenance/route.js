@@ -15,7 +15,9 @@ export async function GET() {
       status: r.status,
       workers: JSON.parse(r.workers || '[]'),
       resolutionNote: r.resolution_note || '',
-      date: r.date
+      date: r.date,
+      fileName: r.file_name || null,
+      filePath: r.file_path || null
     }));
 
     return NextResponse.json(tickets);
@@ -28,7 +30,7 @@ export async function GET() {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { ticketNo, site, title, category, priority, status, workers, resolutionNote, date } = body;
+    const { ticketNo, site, title, category, priority, status, workers, resolutionNote, date, fileName, filePath } = body;
 
     if (!title || !site) {
       return NextResponse.json({ error: '사이트명과 접수 제목을 입력해 주세요.' }, { status: 400 });
@@ -38,8 +40,8 @@ export async function POST(req) {
     const tNo = ticketNo || `TKT-2026-${Date.now().toString().slice(-4)}`;
 
     const stmt = db.prepare(`
-      INSERT INTO maintenance_tickets (id, ticket_no, site, title, category, priority, status, workers, resolution_note, date)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO maintenance_tickets (id, ticket_no, site, title, category, priority, status, workers, resolution_note, date, file_name, file_path)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -52,7 +54,9 @@ export async function POST(req) {
       status || '접수',
       JSON.stringify(workers || []),
       resolutionNote || '',
-      date || new Date().toISOString().split('T')[0]
+      date || new Date().toISOString().split('T')[0],
+      fileName || null,
+      filePath || null
     );
 
     return NextResponse.json({ success: true, id: tId });
@@ -65,28 +69,26 @@ export async function POST(req) {
 export async function PUT(req) {
   try {
     const body = await req.json();
-    const { id, ticketNo, site, title, category, priority, status, workers, resolutionNote, date } = body;
+    const { id, ticketNo, site, title, category, priority, status, workers, resolutionNote, date, fileName, filePath } = body;
 
     if (!id) return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
 
-    const stmt = db.prepare(`
+    let sql = `
       UPDATE maintenance_tickets
       SET ticket_no = ?, site = ?, title = ?, category = ?, priority = ?, status = ?, workers = ?, resolution_note = ?, date = ?
-      WHERE id = ?
-    `);
+    `;
+    const params = [ticketNo, site, title, category, priority, status, JSON.stringify(workers || []), resolutionNote || '', date];
+    
+    if (fileName !== undefined) {
+      sql += `, file_name = ?, file_path = ?`;
+      params.push(fileName, filePath);
+    }
+    
+    sql += ` WHERE id = ?`;
+    params.push(id);
 
-    stmt.run(
-      ticketNo,
-      site,
-      title,
-      category,
-      priority,
-      status,
-      JSON.stringify(workers || []),
-      resolutionNote || '',
-      date,
-      id
-    );
+    const stmt = db.prepare(sql);
+    stmt.run(...params);
 
     return NextResponse.json({ success: true });
   } catch (error) {
