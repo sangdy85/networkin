@@ -1,15 +1,50 @@
 'use client';
 
+import React from 'react';
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    this.setState({ errorInfo });
+    console.error('Caught by ErrorBoundary:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', background: '#ffebee', color: '#b71c1c', borderRadius: '8px' }}>
+          <h2>🚨 에러 발생 (상세 내용)</h2>
+          <p><strong>Message:</strong> {this.state.error?.message}</p>
+          <details style={{ marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
+            <summary>Stack Trace</summary>
+            {this.state.error?.stack}
+          </details>
+          <details style={{ marginTop: '1rem', whiteSpace: 'pre-wrap' }}>
+            <summary>Component Stack</summary>
+            {this.state.errorInfo?.componentStack}
+          </details>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 
 const CONTRACT_STATUSES = ['유지보수 계약중', '프로젝트 진행중', '계약 완료', '상담중'];
 
-export default function ClientDetailPage({ params: pageParams }) {
+function ClientDetailPageComponent() {
   const routeParams = useParams();
   const router = useRouter();
-  const rawId = routeParams?.id || pageParams?.id;
+  const rawId = routeParams?.id;
   const clientId = Array.isArray(rawId) ? rawId[0] : rawId;
   const { currentUser } = useAuth();
 
@@ -145,7 +180,7 @@ export default function ClientDetailPage({ params: pageParams }) {
       const res = await fetch('/api/auth/users');
       if (res.ok) {
         const data = await res.json();
-        setRegisteredUsers(data || []);
+        setRegisteredUsers(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.warn('Fetch users error', e);
@@ -158,7 +193,7 @@ export default function ClientDetailPage({ params: pageParams }) {
       const res = await fetch(`/api/clients/history?clientName=${encodeURIComponent(clientName)}`);
       if (res.ok) {
         const data = await res.json();
-        setHistory(data || []);
+        setHistory(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('Fetch history error', e);
@@ -174,7 +209,7 @@ export default function ClientDetailPage({ params: pageParams }) {
       const res = await fetch(`/api/clients/documents?clientId=${clientId}`);
       if (res.ok) {
         const data = await res.json();
-        setDocuments(data || []);
+        setDocuments(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('Fetch client documents error', e);
@@ -190,10 +225,12 @@ export default function ClientDetailPage({ params: pageParams }) {
       const res = await fetch(`/api/clients/inspections?clientId=${clientId}`);
       if (res.ok) {
         const data = await res.json();
-        setInspectionTemplates(data.templates || []);
+        const templates = Array.isArray(data.templates) ? data.templates : [];
+        setInspectionTemplates(templates);
 
         // Sort scans by inspectionDate descending (most recent date first)
-        const sortedScans = (data.scans || []).sort((a, b) => {
+        const scans = Array.isArray(data.scans) ? data.scans : [];
+        const sortedScans = scans.sort((a, b) => {
           const dateA = a.inspectionDate || a.inspection_date || '';
           const dateB = b.inspectionDate || b.inspection_date || '';
           if (dateA !== dateB) {
@@ -454,7 +491,13 @@ export default function ClientDetailPage({ params: pageParams }) {
     setFormHasPeriodicInspection(cli.has_periodic_inspection === 1);
     setFormInspectionCycle(cli.inspection_cycle || '매월');
 
-    const cfg = typeof cli.network_config === 'object' && cli.network_config !== null ? cli.network_config : {};
+    let cfg = {};
+    if (typeof cli.network_config === 'string') {
+      try { cfg = JSON.parse(cli.network_config); } catch(e) {}
+    } else if (typeof cli.network_config === 'object' && cli.network_config !== null) {
+      cfg = cli.network_config;
+    }
+    
     let rawEquipments = [];
     if (Array.isArray(cfg.equipments)) {
       rawEquipments = cfg.equipments.map(eq => {
@@ -2066,5 +2109,14 @@ export default function ClientDetailPage({ params: pageParams }) {
       )}
 
     </div>
+  );
+}
+
+
+export default function ClientDetailPage(props) {
+  return (
+    <ErrorBoundary>
+      <ClientDetailPageComponent {...props} />
+    </ErrorBoundary>
   );
 }
