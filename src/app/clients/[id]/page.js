@@ -2,10 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
-
-import * as XLSX from 'xlsx';
 
 const CONTRACT_STATUSES = ['유지보수 계약중', '프로젝트 진행중', '계약 완료', '상담중'];
 
@@ -615,8 +612,8 @@ export default function ClientDetailPage() {
     await saveEquipmentsToDB(updatedConfig);
   };
 
-  // Excel Template Download Function
-  const handleDownloadExcelTemplate = () => {
+  // Excel Template Download Function (Dynamic import with CSV fallback)
+  const handleDownloadExcelTemplate = async () => {
     const templateData = [
       {
         '장비명': 'UTM 방화벽',
@@ -644,38 +641,56 @@ export default function ClientDetailPage() {
       }
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(templateData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, '유지보수대상장비양식');
-
-    worksheet['!cols'] = [
-      { wch: 15 },
-      { wch: 25 },
-      { wch: 22 },
-      { wch: 15 },
-      { wch: 25 },
-      { wch: 25 }
-    ];
-
     const safeClientName = client?.name ? client.name.replace(/[/\\?%*:|"<>]/g, '_') : '고객사';
-    XLSX.writeFile(workbook, `유지보수_대상장비_업로드양식_${safeClientName}.xlsx`);
+
+    try {
+      const XLSX = await import('xlsx');
+      const worksheet = XLSX.utils.json_to_sheet(templateData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, '유지보수대상장비양식');
+
+      worksheet['!cols'] = [
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 22 },
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 25 }
+      ];
+
+      XLSX.writeFile(workbook, `유지보수_대상장비_업로드양식_${safeClientName}.xlsx`);
+    } catch (e) {
+      console.warn('Dynamic XLSX import fallback to CSV', e);
+      const headers = ['장비명', '모델명', '시리얼 번호', '실제 계약 여부', '설치 위치', '비고'];
+      const csvRows = [
+        headers.join(','),
+        ...templateData.map(row => headers.map(h => `"${(row[h] || '').replace(/"/g, '""')}"`).join(','))
+      ];
+      const csvContent = '\uFEFF' + csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `유지보수_대상장비_업로드양식_${safeClientName}.csv`;
+      link.click();
+    }
   };
 
-  // Excel File Input Change Handler
-  const handleExcelFileChange = (e) => {
+  // Excel File Input Change Handler (Dynamic import with CSV fallback)
+  const handleExcelFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
+    try {
+      let parsed = [];
       try {
-        const bstr = evt.target.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
-        const parsed = data.map((row) => {
+        parsed = data.map((row) => {
           const type = row['장비명'] || row['장비 구분'] || row['구분'] || row['장비'] || row['type'] || '기타 장비';
           const model = row['모델명'] || row['모델'] || row['model'] || '';
           const serial = row['시리얼 번호'] || row['시리얼번호'] || row['시리얼'] || row['S/N'] || row['SN'] || row['serial'] || '';
@@ -693,20 +708,42 @@ export default function ClientDetailPage() {
             memo: String(memo).trim()
           };
         }).filter(item => item.model || item.serial || item.type);
+      } catch (xlsxErr) {
+        console.warn('XLSX import failed, parsing as text/CSV:', xlsxErr);
+        const text = await file.text();
+        const lines = text.split(/\r?\n/).filter(line => line.trim());
+        if (lines.length > 1) {
+          const headers = lines[0].split(',').map(h => h.replace(/^["']|["']$/g, '').trim());
+          parsed = lines.slice(1).map(line => {
+            const values = line.split(',').map(v => v.replace(/^["']|["']$/g, '').trim());
+            const getVal = (keyName) => {
+              const idx = headers.findIndex(h => h.includes(keyName));
+              return idx >= 0 ? values[idx] || '' : '';
+            };
+            const type = getVal('장비') || getVal('구분') || '기타 장비';
+            const model = getVal('모델');
+            const serial = getVal('시리얼') || getVal('S/N') || getVal('SN');
+            const isContractedRaw = getVal('계약');
+            const isContracted = isContractedRaw.includes('미계약') ? '미계약' : '계약';
+            const location = getVal('위치');
+            const memo = getVal('비고') || getVal('메모');
 
-        if (parsed.length === 0) {
-          alert('엑셀 파일에서 유효한 장비 데이터를 찾을 수 없습니다.');
-          return;
+            return { type, model, serial, isContracted, location, memo };
+          }).filter(item => item.model || item.serial || item.type);
         }
-
-        setExcelParsedData(parsed);
-        setIsExcelModalOpen(true);
-      } catch (err) {
-        alert(`엑셀 파일 읽기 오류: ${err.message}`);
       }
-    };
-    reader.readAsBinaryString(file);
-    // reset input value so re-uploading same file triggers change event
+
+      if (parsed.length === 0) {
+        alert('엑셀 또는 CSV 파일에서 유효한 장비 데이터를 찾을 수 없습니다.');
+        return;
+      }
+
+      setExcelParsedData(parsed);
+      setIsExcelModalOpen(true);
+    } catch (err) {
+      alert(`파일 파싱 오류: ${err.message}`);
+    }
+
     e.target.value = '';
   };
 
