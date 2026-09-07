@@ -203,6 +203,8 @@ db.exec(`
     workers TEXT,
     resolution_note TEXT,
     date TEXT NOT NULL,
+    file_name TEXT,
+    file_path TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -349,6 +351,19 @@ try {
   }
 } catch (e) {
   console.warn('Migration error for mails:', e.message);
+}
+
+// Migration helper for maintenance_tickets
+try {
+  const maintCols = db.prepare("PRAGMA table_info(maintenance_tickets)").all();
+  if (!maintCols.some(c => c.name === 'file_name')) {
+    db.exec("ALTER TABLE maintenance_tickets ADD COLUMN file_name TEXT");
+  }
+  if (!maintCols.some(c => c.name === 'file_path')) {
+    db.exec("ALTER TABLE maintenance_tickets ADD COLUMN file_path TEXT");
+  }
+} catch (e) {
+  console.warn('Migration error for maintenance_tickets:', e.message);
 }
 
 export default db;
