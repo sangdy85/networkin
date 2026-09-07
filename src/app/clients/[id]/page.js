@@ -1217,13 +1217,21 @@ function ClientDetailPageComponent() {
 
                     <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', margin: 0, marginBottom: '0.3rem' }}>{h.title}</h3>
                     <div style={{ fontSize: '0.85rem', color: '#ccc', lineHeight: '1.5' }}>{h.content}</div>
-                    {h.fileName && h.filePath && (
+                    {Array.isArray(h.files) && h.files.length > 0 ? (
+                      <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {h.files.map((f, fIdx) => (
+                          <a key={fIdx} href={f.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.8rem', color: '#00B4D8', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(0,180,216,0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid rgba(0,180,216,0.2)' }}>
+                            📁 {f.fileName}
+                          </a>
+                        ))}
+                      </div>
+                    ) : h.fileName && h.filePath ? (
                       <div style={{ marginTop: '0.4rem' }}>
                         <a href={h.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.8rem', color: '#00B4D8', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(0,180,216,0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
                           📁 {h.fileName}
                         </a>
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>

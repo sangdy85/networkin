@@ -31,8 +31,10 @@ export default function MaintenancePage() {
   const [formCustomWorker, setFormCustomWorker] = useState('');
   const [formResolutionNote, setFormResolutionNote] = useState('');
   const [formDate, setFormDate] = useState('');
-  const [formFile, setFormFile] = useState(null);
+  const [formExistingFiles, setFormExistingFiles] = useState([]);
+  const [formNewFiles, setFormNewFiles] = useState([]);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [syncTarget, setSyncTarget] = useState('network'); // 'network' | 'ipt' | 'none'
 
   // Fetch maintenance tickets & registered users
   useEffect(() => {
@@ -96,6 +98,9 @@ export default function MaintenancePage() {
     setFormCustomWorker('');
     setFormResolutionNote('');
     setFormDate(new Date().toISOString().split('T')[0]);
+    setFormExistingFiles([]);
+    setFormNewFiles([]);
+    setSyncTarget('network');
     setIsModalOpen(true);
   };
 
@@ -112,6 +117,13 @@ export default function MaintenancePage() {
     setFormCustomWorker('');
     setFormResolutionNote(tck.resolutionNote || '');
     setFormDate(tck.date || new Date().toISOString().split('T')[0]);
+    const existing = Array.isArray(tck.files) && tck.files.length > 0 
+      ? tck.files 
+      : (tck.fileName && tck.filePath ? [{ fileName: tck.fileName, filePath: tck.filePath }] : []);
+    setFormExistingFiles(existing);
+    setFormNewFiles([]);
+    const defaultSync = tck.category?.includes('IPT') ? 'ipt' : (tck.category?.includes('네트워크') ? 'network' : 'none');
+    setSyncTarget(defaultSync);
     setIsModalOpen(true);
   };
 
@@ -133,6 +145,23 @@ export default function MaintenancePage() {
     setFormCustomWorker('');
   };
 
+  // Handle Multi-file Selection
+  const handleFileSelect = (e) => {
+    const selected = Array.from(e.target.files || []);
+    if (selected.length > 0) {
+      setFormNewFiles(prev => [...prev, ...selected]);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemoveExistingFile = (idx) => {
+    setFormExistingFiles(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleRemoveNewFile = (idx) => {
+    setFormNewFiles(prev => prev.filter((_, i) => i !== idx));
+  };
+
   // Save Ticket
   const handleSaveSubmit = async (e) => {
     e.preventDefault();
@@ -142,26 +171,32 @@ export default function MaintenancePage() {
     }
 
     setUploadingFile(true);
-    let fileName = null;
-    let filePath = null;
 
     try {
-      if (formFile) {
-        const formData = new FormData();
-        formData.append('file', formFile);
-        const uploadRes = await fetch('/api/clients/documents/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          fileName = uploadData.fileName;
-          filePath = uploadData.filePath;
-        } else {
-          throw new Error('첨부파일 업로드 실패');
+      let uploadedFiles = [];
+      if (formNewFiles.length > 0) {
+        for (const file of formNewFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          const uploadRes = await fetch('/api/clients/documents/upload', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            uploadedFiles.push({
+              fileName: uploadData.fileName,
+              filePath: uploadData.filePath,
+              fileSize: uploadData.fileSize
+            });
+          } else {
+            throw new Error(`파일(${file.name}) 업로드 실패`);
+          }
         }
       }
+
+      const allFiles = [...formExistingFiles, ...uploadedFiles];
 
       const ticketData = {
         id: editingTicket ? editingTicket.id : undefined,
@@ -173,8 +208,8 @@ export default function MaintenancePage() {
         workers: formWorkers.length > 0 ? formWorkers : [currentUser?.name || '담당자'],
         resolutionNote: formResolutionNote.trim(),
         date: formDate,
-        fileName,
-        filePath
+        files: allFiles,
+        syncTarget: syncTarget
       };
 
       const method = editingTicket ? 'PUT' : 'POST';
@@ -326,7 +361,12 @@ export default function MaintenancePage() {
                   <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>유지보수 구분</label>
                   <select
                     value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
+                    onChange={(e) => {
+                      const cat = e.target.value;
+                      setFormCategory(cat);
+                      if (cat.includes('IPT')) setSyncTarget('ipt');
+                      else if (cat.includes('네트워크')) setSyncTarget('network');
+                    }}
                     style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                   >
                     <option value="네트워크 장애">네트워크 장애</option>
@@ -362,6 +402,25 @@ export default function MaintenancePage() {
                     <option value="처리완료">처리완료</option>
                   </select>
                 </div>
+              </div>
+
+              {/* 관리 메뉴 자동 연동 선택 */}
+              <div style={{ background: 'rgba(0,180,216,0.06)', padding: '0.85rem 1rem', borderRadius: '8px', border: '1px solid rgba(0,180,216,0.25)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.83rem', color: '#00B4D8', fontWeight: 700 }}>
+                    🔄 관리 메뉴 자동 연동 등록 (IPT / 네트워크)
+                  </label>
+                  <span style={{ fontSize: '0.75rem', color: '#aaa' }}>선택 시 해당 메뉴의 작업 목록 및 일정에 자동 생성</span>
+                </div>
+                <select
+                  value={syncTarget}
+                  onChange={(e) => setSyncTarget(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem', borderRadius: '6px', background: '#0B132B', border: '1px solid var(--color-accent)', color: 'white', fontWeight: 600, fontSize: '0.85rem' }}
+                >
+                  <option value="network">🌐 네트워크 관리 메뉴에 자동 등록 및 연동</option>
+                  <option value="ipt">📞 IPT (인터넷전화) 관리 메뉴에 자동 등록 및 연동</option>
+                  <option value="none">연동 안 함 (유지보수 티켓에만 단독 등록)</option>
+                </select>
               </div>
 
               <div>
@@ -436,16 +495,52 @@ export default function MaintenancePage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>📁 첨부파일 (점검 보고서 등)</label>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>
+                  📁 첨부파일 (조치 보고서, 사진 등 - 다중 선택 가능)
+                </label>
                 <input
                   type="file"
-                  onChange={(e) => setFormFile(e.target.files[0])}
+                  multiple
+                  onChange={handleFileSelect}
                   style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
-                {editingTicket && editingTicket.fileName && (
-                  <p style={{ fontSize: '0.8rem', color: '#aaa', marginTop: '0.3rem' }}>
-                    기존 첨부파일: <a href={editingTicket.filePath} target="_blank" rel="noreferrer" style={{ color: '#00B4D8' }}>{editingTicket.fileName}</a>
-                  </p>
+                
+                {/* Existing Attached Files */}
+                {formExistingFiles.length > 0 && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <span style={{ fontSize: '0.78rem', color: '#aaa', display: 'block', marginBottom: '0.2rem' }}>
+                      기존 등록 파일 ({formExistingFiles.length}개):
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      {formExistingFiles.map((f, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', padding: '0.3rem 0.6rem', borderRadius: '6px' }}>
+                          <a href={f.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.8rem', color: '#00B4D8', textDecoration: 'none' }}>
+                            📁 {f.fileName}
+                          </a>
+                          <button type="button" onClick={() => handleRemoveExistingFile(i)} style={{ background: 'none', border: 'none', color: '#E63946', cursor: 'pointer', fontSize: '0.85rem' }}>✕ 삭제</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Newly Selected Files */}
+                {formNewFiles.length > 0 && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <span style={{ fontSize: '0.78rem', color: '#00B4D8', display: 'block', marginBottom: '0.2rem' }}>
+                      새로 첨부할 파일 ({formNewFiles.length}개):
+                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      {formNewFiles.map((f, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,180,216,0.1)', padding: '0.3rem 0.6rem', borderRadius: '6px' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#fff' }}>
+                            📄 {f.name} <span style={{ color: '#aaa', fontSize: '0.75rem' }}>({(f.size / 1024).toFixed(1)} KB)</span>
+                          </span>
+                          <button type="button" onClick={() => handleRemoveNewFile(i)} style={{ background: 'none', border: 'none', color: '#E63946', cursor: 'pointer', fontSize: '0.85rem' }}>✕ 취소</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -519,6 +614,28 @@ export default function MaintenancePage() {
                   <p style={{ color: '#ddd', fontSize: '0.88rem', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{viewTicket.resolutionNote}</p>
                 </div>
               )}
+
+              {/* View Attached Files */}
+              {((Array.isArray(viewTicket.files) && viewTicket.files.length > 0) || (viewTicket.fileName && viewTicket.filePath)) && (
+                <div style={{ background: 'rgba(0,180,216,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(0,180,216,0.2)' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#00B4D8', fontWeight: 700, display: 'block', marginBottom: '0.4rem' }}>
+                    📁 첨부파일 ({viewTicket.files?.length || 1}개):
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {Array.isArray(viewTicket.files) && viewTicket.files.length > 0 ? (
+                      viewTicket.files.map((f, i) => (
+                        <a key={i} href={f.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.82rem', color: '#00B4D8', background: 'rgba(0,180,216,0.15)', padding: '0.3rem 0.7rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(0,180,216,0.3)' }}>
+                          📥 {f.fileName} {f.fileSize ? `(${f.fileSize})` : ''}
+                        </a>
+                      ))
+                    ) : (
+                      <a href={viewTicket.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.82rem', color: '#00B4D8', background: 'rgba(0,180,216,0.15)', padding: '0.3rem 0.7rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(0,180,216,0.3)' }}>
+                        📥 {viewTicket.fileName}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
@@ -557,7 +674,14 @@ export default function MaintenancePage() {
                   <td style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '0.8rem' }}>{t.ticketNo || t.id}</td>
                   <td style={{ fontWeight: 600 }}>{t.site}</td>
                   <td>
-                    <div style={{ fontWeight: 600, color: '#fff' }}>{t.title}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 600, color: '#fff' }}>{t.title}</span>
+                      {((Array.isArray(t.files) && t.files.length > 0) || (t.fileName && t.filePath)) && (
+                        <span style={{ fontSize: '0.72rem', background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.1rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}>
+                          📎 {t.files?.length || 1}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <span style={{ fontSize: '0.78rem', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>

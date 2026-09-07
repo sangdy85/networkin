@@ -20,6 +20,18 @@ export async function GET(request) {
       maintRows.forEach(m => {
         let workersArr = [];
         try { workersArr = JSON.parse(m.workers || '[]'); } catch (e) { workersArr = m.workers ? [m.workers] : []; }
+        let filesArr = [];
+        if (m.file_path) {
+          try {
+            if (m.file_path.startsWith('[')) {
+              filesArr = JSON.parse(m.file_path);
+            } else if (m.file_name) {
+              filesArr = [{ fileName: m.file_name, filePath: m.file_path }];
+            }
+          } catch (e) {
+            if (m.file_name) filesArr = [{ fileName: m.file_name, filePath: m.file_path }];
+          }
+        }
         history.push({
           id: `MAINT-${m.id}`,
           date: m.date,
@@ -30,7 +42,8 @@ export async function GET(request) {
           content: m.resolution_note || m.site,
           badgeColor: m.priority === '긴급' ? '#E63946' : '#FF9F1C',
           fileName: m.file_name,
-          filePath: m.file_path
+          filePath: m.file_path,
+          files: filesArr
         });
       });
     } catch (e) {}
