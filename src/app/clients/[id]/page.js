@@ -1878,6 +1878,78 @@ function ClientDetailPageComponent() {
         </div>
       )}
 
+      {/* 📁 관리 문서 업로드 모달 */}
+      {isDocModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <h2 className="panel-title" style={{ fontSize: '1.15rem', color: '#fff' }}>📁 신규 관리 문서 공유/등록</h2>
+              <button onClick={() => setIsDocModalOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleUploadDocument} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>문서 제목 *</label>
+                  <input
+                    type="text"
+                    required
+                    value={docTitle}
+                    onChange={(e) => setDocTitle(e.target.value)}
+                    placeholder="예: 2026년도 유지보수 계약서"
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>문서 카테고리</label>
+                  <select
+                    value={docCategory}
+                    onChange={(e) => setDocCategory(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--color-accent)', color: 'white' }}
+                  >
+                    <option value="계약서">계약서</option>
+                    <option value="네트워크 구성도">🌐 네트워크 구성도</option>
+                    <option value="정기점검 보고서">정기점검 보고서</option>
+                    <option value="정산서 / 청구서">정산서 / 청구서</option>
+                    <option value="기타 문서">기타 문서</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>파일 첨부 *</label>
+                <input
+                  type="file"
+                  required
+                  onChange={(e) => setDocFile(e.target.files[0])}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>문서 설명 / 요약 (선택)</label>
+                <textarea
+                  rows={3}
+                  value={docDescription}
+                  onChange={(e) => setDocDescription(e.target.value)}
+                  placeholder="공유할 문서에 대한 간단한 설명을 입력하세요."
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white', resize: 'vertical' }}
+                ></textarea>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setIsDocModalOpen(false)} className="btn btn-secondary">취소</button>
+                <button type="submit" className="btn btn-accent" disabled={uploadingDoc} style={{ background: '#9D4EDD', borderColor: '#9D4EDD' }}>
+                  {uploadingDoc ? '업로드 중...' : '📤 업로드 및 공유'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Edit Profile Modal */}
       {isEditModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
