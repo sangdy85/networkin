@@ -6,10 +6,11 @@ import { useAuth } from '../../context/AuthContext';
 
 const CONTRACT_STATUSES = ['유지보수 계약중', '프로젝트 진행중', '계약 완료', '상담중'];
 
-export default function ClientDetailPage() {
-  const params = useParams();
+export default function ClientDetailPage({ params: pageParams }) {
+  const routeParams = useParams();
   const router = useRouter();
-  const clientId = params?.id;
+  const rawId = routeParams?.id || pageParams?.id;
+  const clientId = Array.isArray(rawId) ? rawId[0] : rawId;
   const { currentUser } = useAuth();
 
   const [client, setClient] = useState(null);
@@ -420,9 +421,30 @@ export default function ClientDetailPage() {
   };
 
   const initClientForms = (cli) => {
+    if (!cli) return;
     setFormName(cli.name || '');
     setFormIndustry(cli.industry || '');
-    setFormContacts(Array.isArray(cli.contacts) && cli.contacts.length > 0 ? cli.contacts : [{ name: cli.contact_name || '', rank: '', phone: cli.contact_phone || '', email: cli.contact_email || '', duty: '대표 담당자' }]);
+
+    let normalizedContacts = [];
+    if (Array.isArray(cli.contacts) && cli.contacts.length > 0) {
+      normalizedContacts = cli.contacts.map(c => {
+        if (typeof c === 'string') return { name: c, rank: '', phone: '', email: '', duty: '담당자' };
+        if (c && typeof c === 'object') return { name: c.name || '담당자', rank: c.rank || '', phone: c.phone || '', email: c.email || '', duty: c.duty || '담당자' };
+        return { name: '담당자', rank: '', phone: '', email: '', duty: '담당자' };
+      });
+    } else if (cli.contact_name || cli.contact_phone || cli.contact_email) {
+      normalizedContacts = [{
+        name: cli.contact_name || '',
+        rank: '',
+        phone: cli.contact_phone || '',
+        email: cli.contact_email || '',
+        duty: '대표 담당자'
+      }];
+    } else {
+      normalizedContacts = [{ name: '', rank: '', phone: '', email: '', duty: '대표 담당자' }];
+    }
+
+    setFormContacts(normalizedContacts);
     setFormAddress(cli.address || '');
     setFormContractStatus(cli.contract_status || '유지보수 계약중');
     setFormContractDate(cli.contract_date || new Date().toISOString().split('T')[0]);
@@ -432,14 +454,32 @@ export default function ClientDetailPage() {
     setFormHasPeriodicInspection(cli.has_periodic_inspection === 1);
     setFormInspectionCycle(cli.inspection_cycle || '매월');
 
-    const cfg = cli.network_config || {};
+    const cfg = typeof cli.network_config === 'object' && cli.network_config !== null ? cli.network_config : {};
+    let rawEquipments = [];
+    if (Array.isArray(cfg.equipments)) {
+      rawEquipments = cfg.equipments.map(eq => {
+        if (typeof eq === 'string') return { type: '기타 장비', model: eq, serial: '', isContracted: '계약', location: '', memo: '' };
+        if (eq && typeof eq === 'object') {
+          return {
+            type: eq.type || eq.name || '기타 장비',
+            model: eq.model || '',
+            serial: eq.serial || '',
+            isContracted: eq.isContracted || '계약',
+            location: eq.location || '',
+            memo: eq.memo || ''
+          };
+        }
+        return { type: '기타 장비', model: '', serial: '', isContracted: '계약', location: '', memo: '' };
+      });
+    }
+
     setNetConfig({
       isp: cfg.isp || 'KT 전용회선 (1G)',
-      ipSubnet: cfg.ipSubnet || '192.168.10.0/24',
-      gateway: cfg.gateway || '192.168.10.1',
+      ipSubnet: cfg.ipSubnet || '192.168.0.0/24',
+      gateway: cfg.gateway || '192.168.0.1',
       dnsPrimary: cfg.dnsPrimary || '168.126.63.1',
       dnsSecondary: cfg.dnsSecondary || '168.126.63.2',
-      equipments: Array.isArray(cfg.equipments) ? cfg.equipments : [],
+      equipments: rawEquipments,
       notes: cfg.notes || ''
     });
   };
