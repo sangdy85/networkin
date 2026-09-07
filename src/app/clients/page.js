@@ -24,7 +24,7 @@ export default function ClientsPage() {
   const [formName, setFormName] = useState('');
   const [formIndustry, setFormIndustry] = useState('');
   const [formContacts, setFormContacts] = useState([
-    { name: '', phone: '', email: '', duty: '대표 담당자' }
+    { name: '', rank: '', phone: '', email: '', duty: '대표 담당자' }
   ]);
   const [formAddress, setFormAddress] = useState('');
   const [formContractStatus, setFormContractStatus] = useState('유지보수 계약중');
@@ -32,6 +32,8 @@ export default function ClientsPage() {
   const [formEngineerPrimary, setFormEngineerPrimary] = useState('');
   const [formEngineerSecondary, setFormEngineerSecondary] = useState('미지정');
   const [formMemo, setFormMemo] = useState('');
+  const [formHasPeriodicInspection, setFormHasPeriodicInspection] = useState(true);
+  const [formInspectionCycle, setFormInspectionCycle] = useState('매월');
 
   // Fetch clients & registered users
   useEffect(() => {
@@ -70,7 +72,7 @@ export default function ClientsPage() {
   const handleAddContact = () => {
     setFormContacts([
       ...formContacts,
-      { name: '', phone: '', email: '', duty: '담당자' }
+      { name: '', rank: '', phone: '', email: '', duty: '담당자' }
     ]);
   };
 
@@ -90,10 +92,12 @@ export default function ClientsPage() {
     setEditingClient(null);
     setFormName('');
     setFormIndustry('');
-    setFormContacts([{ name: '', phone: '', email: '', duty: '대표 담당자' }]);
+    setFormContacts([{ name: '', rank: '', phone: '', email: '', duty: '대표 담당자' }]);
     setFormAddress('');
     setFormContractStatus('유지보수 계약중');
     setFormContractDate(new Date().toISOString().split('T')[0]);
+    setFormHasPeriodicInspection(true);
+    setFormInspectionCycle('매월');
     
     const defaultEng = engineerUsers[0]?.name ? `${engineerUsers[0].name}${engineerUsers[0].rank ? ' ' + engineerUsers[0].rank : ''}`.trim() : currentUser?.name || '담당자';
     setFormEngineerPrimary(defaultEng);
@@ -114,12 +118,13 @@ export default function ClientsPage() {
     } else if (cli.contact_name || cli.contact_phone || cli.contact_email) {
       setFormContacts([{
         name: cli.contact_name || '',
+        rank: '',
         phone: cli.contact_phone || '',
         email: cli.contact_email || '',
         duty: '대표 담당자'
       }]);
     } else {
-      setFormContacts([{ name: '', phone: '', email: '', duty: '대표 담당자' }]);
+      setFormContacts([{ name: '', rank: '', phone: '', email: '', duty: '대표 담당자' }]);
     }
 
     setFormAddress(cli.address || '');
@@ -128,6 +133,8 @@ export default function ClientsPage() {
     setFormEngineerPrimary(cli.engineer_primary || cli.assigned_pm || '담당자');
     setFormEngineerSecondary(cli.engineer_secondary || '미지정');
     setFormMemo(cli.memo || '');
+    setFormHasPeriodicInspection(cli.has_periodic_inspection === 1);
+    setFormInspectionCycle(cli.inspection_cycle || '매월');
     setIsModalOpen(true);
   };
 
@@ -149,7 +156,9 @@ export default function ClientsPage() {
       contract_date: formContractDate,
       engineer_primary: formEngineerPrimary,
       engineer_secondary: formEngineerSecondary,
-      memo: formMemo.trim()
+      memo: formMemo.trim(),
+      has_periodic_inspection: formHasPeriodicInspection ? 1 : 0,
+      inspection_cycle: formInspectionCycle
     };
 
     try {
@@ -327,31 +336,38 @@ export default function ClientsPage() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   {formContacts.map((cnt, idx) => (
-                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1.5fr 0.9fr auto', gap: '0.4rem', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '6px' }}>
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr 1.2fr 1.4fr 0.9fr auto', gap: '0.4rem', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '6px' }}>
                       <input
                         type="text"
-                        placeholder="담당자명 (예: 김민지)"
+                        placeholder="담당자명"
                         value={cnt.name}
                         onChange={(e) => handleContactChange(idx, 'name', e.target.value)}
                         style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
                       />
                       <input
                         type="text"
-                        placeholder="연락처 (예: 010-1234-5678)"
+                        placeholder="직급(과장 등)"
+                        value={cnt.rank || ''}
+                        onChange={(e) => handleContactChange(idx, 'rank', e.target.value)}
+                        style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="연락처"
                         value={cnt.phone}
                         onChange={(e) => handleContactChange(idx, 'phone', e.target.value)}
                         style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
                       />
                       <input
                         type="email"
-                        placeholder="이메일 (mj@client.com)"
+                        placeholder="이메일"
                         value={cnt.email}
                         onChange={(e) => handleContactChange(idx, 'email', e.target.value)}
                         style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
                       />
                       <input
                         type="text"
-                        placeholder="직책/직무"
+                        placeholder="담당업무"
                         value={cnt.duty || ''}
                         onChange={(e) => handleContactChange(idx, 'duty', e.target.value)}
                         style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
@@ -367,6 +383,40 @@ export default function ClientsPage() {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Periodic Inspection Configuration */}
+              <div style={{ background: 'rgba(157,78,221,0.06)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(157,78,221,0.25)' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: '#C77DFF', fontWeight: 700, marginBottom: '0.6rem' }}>
+                  🔄 정기점검 실시 유무 및 점검 주기 설정
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#fff', fontSize: '0.85rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formHasPeriodicInspection}
+                      onChange={(e) => setFormHasPeriodicInspection(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#9D4EDD' }}
+                    />
+                    <span>정기점검 진행 고객사 (점검 대상)</span>
+                  </label>
+
+                  {formHasPeriodicInspection && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.82rem', color: '#aaa' }}>점검 주기:</span>
+                      <select
+                        value={formInspectionCycle}
+                        onChange={(e) => setFormInspectionCycle(e.target.value)}
+                        style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', background: '#0B132B', border: '1px solid #9D4EDD', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
+                      >
+                        <option value="매월">📅 매월 (월 1회)</option>
+                        <option value="분기(3개월)">📅 분기 (3개월 1회)</option>
+                        <option value="반기(6개월)">📅 반기 (6개월 1회)</option>
+                        <option value="연간(12개월)">📅 연간 (년 1회)</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -481,7 +531,7 @@ export default function ClientsPage() {
               <th>고객사명</th>
               <th>업종</th>
               <th>담당자 목록</th>
-              <th>사업장 주소</th>
+              <th>정기점검</th>
               <th>계약 상태</th>
               <th>전담 엔지니어 (정/부)</th>
               <th style={{ width: '140px', textAlign: 'center' }}>관리</th>
@@ -510,12 +560,25 @@ export default function ClientsPage() {
                       {(Array.isArray(c.contacts) && c.contacts.length > 0 ? c.contacts : [{ name: c.contact_name, phone: c.contact_phone }]).map((cnt, idx) => (
                         <div key={idx} style={{ fontSize: '0.82rem' }}>
                           <strong style={{ color: '#fff' }}>{cnt.name || '-'}</strong>
+                          {cnt.rank && <span style={{ fontSize: '0.78rem', color: '#00B4D8', marginLeft: '0.25rem' }}>{cnt.rank}</span>}
                           {cnt.phone && <span style={{ fontSize: '0.75rem', color: '#aaa', marginLeft: '0.3rem' }}>({cnt.phone})</span>}
                         </div>
                       ))}
                     </div>
                   </td>
-                  <td style={{ fontSize: '0.82rem', color: '#ccc', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.address}</td>
+                  <td>
+                    <span style={{
+                      fontSize: '0.78rem',
+                      padding: '0.2rem 0.55rem',
+                      borderRadius: '4px',
+                      fontWeight: 700,
+                      background: c.has_periodic_inspection === 1 ? 'rgba(157,78,221,0.2)' : 'rgba(255,255,255,0.05)',
+                      color: c.has_periodic_inspection === 1 ? '#C77DFF' : '#888',
+                      border: c.has_periodic_inspection === 1 ? '1px solid rgba(157,78,221,0.4)' : 'none'
+                    }}>
+                      {c.has_periodic_inspection === 1 ? `🔄 ${c.inspection_cycle || '매월'}` : '미대상'}
+                    </span>
+                  </td>
                   <td>
                     <span style={{
                       fontSize: '0.78rem',

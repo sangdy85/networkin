@@ -17,7 +17,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [registeredUsers, setRegisteredUsers] = useState([]);
 
-  // Active Tab: 'info' | 'history' | 'network'
+  // Active Tab: 'info' | 'history' | 'network' | 'docs' | 'inspections'
   const [activeTab, setActiveTab] = useState('info');
 
   // Work History State
@@ -25,6 +25,40 @@ export default function ClientDetailPage() {
   const [historyFilter, setHistoryFilter] = useState('전체');
   const [historySearch, setHistorySearch] = useState('');
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Client Documents State
+  const [documents, setDocuments] = useState([]);
+  const [docFilter, setDocFilter] = useState('전체');
+  const [docSearch, setDocSearch] = useState('');
+  const [docsLoading, setDocsLoading] = useState(false);
+
+  // Document Upload Modal State
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [docTitle, setDocTitle] = useState('');
+  const [docCategory, setDocCategory] = useState('계약서');
+  const [docDescription, setDocDescription] = useState('');
+  const [docFile, setDocFile] = useState(null);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // Inspection States (Templates & Scans)
+  const [inspectionTemplates, setInspectionTemplates] = useState([]);
+  const [inspectionScans, setInspectionScans] = useState([]);
+  const [inspectionsLoading, setInspectionsLoading] = useState(false);
+
+  // Template Upload Modal State
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [templateTitle, setTemplateTitle] = useState('');
+  const [templateFile, setTemplateFile] = useState(null);
+  const [uploadingTemplate, setUploadingTemplate] = useState(false);
+
+  // Scan Report Upload Modal State
+  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
+  const [scanTitle, setScanTitle] = useState('');
+  const [scanDate, setScanDate] = useState(new Date().toISOString().split('T')[0]);
+  const [scanInspector, setScanInspector] = useState('');
+  const [scanMemo, setScanMemo] = useState('');
+  const [scanFile, setScanFile] = useState(null);
+  const [uploadingScan, setUploadingScan] = useState(false);
 
   // Edit Basic Profile Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -37,6 +71,8 @@ export default function ClientDetailPage() {
   const [formEngineerPrimary, setFormEngineerPrimary] = useState('');
   const [formEngineerSecondary, setFormEngineerSecondary] = useState('미지정');
   const [formMemo, setFormMemo] = useState('');
+  const [formHasPeriodicInspection, setFormHasPeriodicInspection] = useState(true);
+  const [formInspectionCycle, setFormInspectionCycle] = useState('매월');
 
   // Network Config State
   const [netConfig, setNetConfig] = useState({
@@ -54,11 +90,13 @@ export default function ClientDetailPage() {
   const [newEquipModel, setNewEquipModel] = useState('');
   const [newEquipLocation, setNewEquipLocation] = useState('');
 
-  // Fetch client details & users
+  // Fetch client details, users, documents & inspections
   useEffect(() => {
     if (clientId) {
       fetchClientDetail();
       fetchUsersFromAPI();
+      fetchClientDocuments();
+      fetchInspections();
     }
   }, [clientId]);
 
@@ -112,16 +150,260 @@ export default function ClientDetailPage() {
     }
   };
 
+  const fetchClientDocuments = async () => {
+    if (!clientId) return;
+    setDocsLoading(true);
+    try {
+      const res = await fetch(`/api/clients/documents?clientId=${clientId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDocuments(data || []);
+      }
+    } catch (e) {
+      console.error('Fetch client documents error', e);
+    } finally {
+      setDocsLoading(false);
+    }
+  };
+
+  const fetchInspections = async () => {
+    if (!clientId) return;
+    setInspectionsLoading(true);
+    try {
+      const res = await fetch(`/api/clients/inspections?clientId=${clientId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setInspectionTemplates(data.templates || []);
+        setInspectionScans(data.scans || []);
+      }
+    } catch (e) {
+      console.error('Fetch inspections error', e);
+    } finally {
+      setInspectionsLoading(false);
+    }
+  };
+
+  const handleUploadTemplate = async (e) => {
+    e.preventDefault();
+    if (!templateFile) {
+      alert('점검서 양식 파일을 선택해주세요.');
+      return;
+    }
+
+    setUploadingTemplate(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', templateFile);
+
+      const uploadRes = await fetch('/api/clients/inspections/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadRes.ok) throw new Error('양식 파일 업로드 실패');
+      const uploadData = await uploadRes.json();
+
+      const payload = {
+        type: 'template',
+        clientId,
+        title: templateTitle.trim() || `${client?.name || '고객사'} 정기점검 서식 양식`,
+        fileName: uploadData.fileName,
+        filePath: uploadData.filePath,
+        fileSize: uploadData.fileSize,
+        version: `v${inspectionTemplates.length + 1}.0`,
+        uploadedBy: currentUser?.name || '담당자'
+      };
+
+      const metaRes = await fetch('/api/clients/inspections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (metaRes.ok) {
+        alert('신규 점검서 양식이 등록되었으며 최신 대표 양식으로 설정되었습니다!');
+        setIsTemplateModalOpen(false);
+        setTemplateTitle('');
+        setTemplateFile(null);
+        fetchInspections();
+      } else {
+        alert('양식 등록 실패');
+      }
+    } catch (err) {
+      alert(`양식 등록 오류: ${err.message}`);
+    } finally {
+      setUploadingTemplate(false);
+    }
+  };
+
+  const handleUploadScan = async (e) => {
+    e.preventDefault();
+    if (!scanFile) {
+      alert('점검서 스캔본 파일을 선택해주세요.');
+      return;
+    }
+
+    setUploadingScan(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', scanFile);
+
+      const uploadRes = await fetch('/api/clients/inspections/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadRes.ok) throw new Error('스캔본 파일 업로드 실패');
+      const uploadData = await uploadRes.json();
+
+      const payload = {
+        type: 'scan',
+        clientId,
+        title: scanTitle.trim() || `${scanDate} 정기점검 완료 보고서`,
+        inspectionDate: scanDate,
+        inspector: scanInspector.trim() || currentUser?.name || '점검 엔지니어',
+        fileName: uploadData.fileName,
+        filePath: uploadData.filePath,
+        fileSize: uploadData.fileSize,
+        memo: scanMemo.trim(),
+        uploadedBy: currentUser?.name || '담당자'
+      };
+
+      const metaRes = await fetch('/api/clients/inspections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (metaRes.ok) {
+        alert('정기점검 스캔본 보고서가 정상적으로 등록되었습니다!');
+        setIsScanModalOpen(false);
+        setScanTitle('');
+        setScanMemo('');
+        setScanFile(null);
+        fetchInspections();
+      } else {
+        alert('스캔본 등록 실패');
+      }
+    } catch (err) {
+      alert(`스캔본 등록 오류: ${err.message}`);
+    } finally {
+      setUploadingScan(false);
+    }
+  };
+
+  const handleDeleteInspectionItem = async (type, id, title) => {
+    if (confirm(`'${title}' 항목을 삭제하시겠습니까?`)) {
+      try {
+        const res = await fetch(`/api/clients/inspections?type=${type}&id=${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          alert('삭제되었습니다.');
+          fetchInspections();
+        }
+      } catch (e) {
+        console.error('Delete inspection item error', e);
+      }
+    }
+  };
+
+  const handleUploadDocument = async (e) => {
+    e.preventDefault();
+    if (!docTitle.trim()) {
+      alert('문서 제목을 입력해주세요.');
+      return;
+    }
+    if (!docFile) {
+      alert('업로드할 파일 문서 선택이 필요합니다.');
+      return;
+    }
+
+    setUploadingDoc(true);
+    try {
+      // 1. Upload File
+      const formData = new FormData();
+      formData.append('file', docFile);
+
+      const uploadRes = await fetch('/api/clients/documents/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadRes.ok) {
+        const errData = await uploadRes.json();
+        throw new Error(errData.error || '파일 업로드 실패');
+      }
+
+      const uploadData = await uploadRes.json();
+
+      // 2. Save Document Metadata
+      const payload = {
+        clientId,
+        title: docTitle.trim(),
+        category: docCategory,
+        fileName: uploadData.fileName,
+        filePath: uploadData.filePath,
+        fileSize: uploadData.fileSize,
+        uploadedBy: currentUser?.name || '담당자',
+        description: docDescription.trim()
+      };
+
+      const metaRes = await fetch('/api/clients/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (metaRes.ok) {
+        alert('관리 문서가 등록되어 공유되었습니다!');
+        setIsDocModalOpen(false);
+        setDocTitle('');
+        setDocCategory('계약서');
+        setDocDescription('');
+        setDocFile(null);
+        fetchClientDocuments();
+      } else {
+        const errData = await metaRes.json();
+        alert(`등록 실패: ${errData.error}`);
+      }
+    } catch (err) {
+      alert(`문서 등록 오류: ${err.message}`);
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleDeleteDocument = async (docId, title) => {
+    if (confirm(`'${title}' 공유 관리 문서를 삭제하시겠습니까?`)) {
+      try {
+        const res = await fetch(`/api/clients/documents?id=${docId}`, { method: 'DELETE' });
+        if (res.ok) {
+          alert('문서가 삭제되었습니다.');
+          fetchClientDocuments();
+        }
+      } catch (e) {
+        console.error('Delete document error', e);
+      }
+    }
+  };
+
+  const handleCopyLink = (filePath) => {
+    const fullUrl = `${window.location.origin}${filePath}`;
+    navigator.clipboard.writeText(fullUrl);
+    alert(`다운로드 공유 링크가 클립보드에 복사되었습니다!\n${fullUrl}`);
+  };
+
   const initClientForms = (cli) => {
     setFormName(cli.name || '');
     setFormIndustry(cli.industry || '');
-    setFormContacts(Array.isArray(cli.contacts) && cli.contacts.length > 0 ? cli.contacts : [{ name: cli.contact_name || '', phone: cli.contact_phone || '', email: cli.contact_email || '', duty: '대표 담당자' }]);
+    setFormContacts(Array.isArray(cli.contacts) && cli.contacts.length > 0 ? cli.contacts : [{ name: cli.contact_name || '', rank: '', phone: cli.contact_phone || '', email: cli.contact_email || '', duty: '대표 담당자' }]);
     setFormAddress(cli.address || '');
     setFormContractStatus(cli.contract_status || '유지보수 계약중');
     setFormContractDate(cli.contract_date || new Date().toISOString().split('T')[0]);
     setFormEngineerPrimary(cli.engineer_primary || cli.assigned_pm || '담당자');
     setFormEngineerSecondary(cli.engineer_secondary || '미지정');
     setFormMemo(cli.memo || '');
+    setFormHasPeriodicInspection(cli.has_periodic_inspection === 1);
+    setFormInspectionCycle(cli.inspection_cycle || '매월');
 
     const cfg = cli.network_config || {};
     setNetConfig({
@@ -140,7 +422,7 @@ export default function ClientDetailPage() {
 
   // Contact helper handlers
   const handleAddContact = () => {
-    setFormContacts([...formContacts, { name: '', phone: '', email: '', duty: '담당자' }]);
+    setFormContacts([...formContacts, { name: '', rank: '', phone: '', email: '', duty: '담당자' }]);
   };
 
   const handleRemoveContact = (idx) => {
@@ -173,7 +455,9 @@ export default function ClientDetailPage() {
       engineer_primary: formEngineerPrimary,
       engineer_secondary: formEngineerSecondary,
       memo: formMemo.trim(),
-      network_config: netConfig
+      network_config: netConfig,
+      has_periodic_inspection: formHasPeriodicInspection ? 1 : 0,
+      inspection_cycle: formInspectionCycle
     };
 
     try {
@@ -276,6 +560,18 @@ export default function ClientDetailPage() {
     return typeMatch && searchMatch;
   });
 
+  // Client Document Filtering
+  const filteredDocuments = documents.filter(doc => {
+    const categoryMatch = docFilter === '전체' || doc.category === docFilter;
+    const searchMatch = !docSearch.trim() ||
+      (doc.title || '').toLowerCase().includes(docSearch.toLowerCase()) ||
+      (doc.fileName || '').toLowerCase().includes(docSearch.toLowerCase()) ||
+      (doc.description || '').toLowerCase().includes(docSearch.toLowerCase()) ||
+      (doc.uploadedBy || '').toLowerCase().includes(docSearch.toLowerCase());
+
+    return categoryMatch && searchMatch;
+  });
+
   if (loading) {
     return (
       <div style={{ padding: '3rem', textAlign: 'center', color: '#aaa' }}>
@@ -311,12 +607,21 @@ export default function ClientDetailPage() {
       <div className="panel" style={{ padding: '1.5rem', marginBottom: '1.5rem', background: 'linear-gradient(135deg, rgba(11,19,43,0.9) 0%, rgba(27,38,59,0.9) 100%)', borderLeft: '6px solid var(--color-accent)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
               <span className="badge" style={{ background: 'var(--color-primary)', color: '#fff', fontSize: '0.8rem', fontFamily: 'monospace' }}>
                 {client.code}
               </span>
               <span className="badge" style={{ background: client.contract_status === '유지보수 계약중' ? 'rgba(56,176,0,0.25)' : 'rgba(255,183,3,0.25)', color: client.contract_status === '유지보수 계약중' ? '#38B000' : '#FFB703', fontSize: '0.8rem', fontWeight: 700 }}>
                 ● {client.contract_status}
+              </span>
+              <span className="badge" style={{
+                background: client.has_periodic_inspection === 1 ? 'rgba(157,78,221,0.25)' : 'rgba(255,255,255,0.08)',
+                color: client.has_periodic_inspection === 1 ? '#C77DFF' : '#aaa',
+                border: client.has_periodic_inspection === 1 ? '1px solid rgba(157,78,221,0.4)' : 'none',
+                fontSize: '0.8rem',
+                fontWeight: 700
+              }}>
+                🔄 {client.has_periodic_inspection === 1 ? `정기점검 진행 (${client.inspection_cycle || '매월'})` : '정기점검 미대상'}
               </span>
               {client.industry && (
                 <span style={{ fontSize: '0.78rem', background: 'rgba(255,255,255,0.08)', color: '#ddd', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
@@ -348,7 +653,7 @@ export default function ClientDetailPage() {
       </div>
 
       {/* KPI Overview Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         <div className="panel" style={{ padding: '1rem', background: 'rgba(0,180,216,0.06)', borderLeft: '4px solid #00B4D8' }}>
           <div style={{ fontSize: '0.78rem', color: '#aaa' }}>등록 담당자</div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff', marginTop: '0.2rem' }}>
@@ -369,10 +674,24 @@ export default function ClientDetailPage() {
             {netConfig.equipments.length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>대</span>
           </div>
         </div>
+
+        <div className="panel" style={{ padding: '1rem', background: 'rgba(157,78,221,0.06)', borderLeft: '4px solid #9D4EDD' }}>
+          <div style={{ fontSize: '0.78rem', color: '#aaa' }}>점검서 스캔본</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#C77DFF', marginTop: '0.2rem' }}>
+            {inspectionScans.length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>건</span>
+          </div>
+        </div>
+
+        <div className="panel" style={{ padding: '1rem', background: 'rgba(0,180,216,0.06)', borderLeft: '4px solid #00B4D8' }}>
+          <div style={{ fontSize: '0.78rem', color: '#aaa' }}>공유 관리 문서</div>
+          <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#00B4D8', marginTop: '0.2rem' }}>
+            {documents.length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>건</span>
+          </div>
+        </div>
       </div>
 
       {/* Main Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
         <button
           onClick={() => setActiveTab('info')}
           className={`btn ${activeTab === 'info' ? 'btn-accent' : 'btn-secondary'}`}
@@ -394,6 +713,20 @@ export default function ClientDetailPage() {
         >
           🌐 네트워크 회선 & 인프라 자산 관리
         </button>
+        <button
+          onClick={() => setActiveTab('inspections')}
+          className={`btn ${activeTab === 'inspections' ? 'btn-accent' : 'btn-secondary'}`}
+          style={{ fontSize: '0.9rem', padding: '0.6rem 1.25rem', fontWeight: 700, background: activeTab === 'inspections' ? '#9D4EDD' : undefined, borderColor: activeTab === 'inspections' ? '#9D4EDD' : undefined }}
+        >
+          🔍 정기점검 & 스캔본 관리 ({inspectionScans.length}건)
+        </button>
+        <button
+          onClick={() => setActiveTab('docs')}
+          className={`btn ${activeTab === 'docs' ? 'btn-accent' : 'btn-secondary'}`}
+          style={{ fontSize: '0.9rem', padding: '0.6rem 1.25rem', fontWeight: 700 }}
+        >
+          📁 관리 문서 공유 ({documents.length}건)
+        </button>
       </div>
 
       {/* TAB 1: Profile & Contacts */}
@@ -414,7 +747,14 @@ export default function ClientDetailPage() {
                 <div key={i} style={{ background: 'var(--bg-main)', padding: '1.1rem', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <strong style={{ fontSize: '1.05rem', color: '#fff' }}>{cnt.name || '담당자'}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <strong style={{ fontSize: '1.05rem', color: '#fff' }}>{cnt.name || '담당자'}</strong>
+                        {cnt.rank && (
+                          <span style={{ fontSize: '0.8rem', color: '#00B4D8', fontWeight: 600 }}>
+                            {cnt.rank}
+                          </span>
+                        )}
+                      </div>
                       {cnt.duty && (
                         <span style={{ fontSize: '0.78rem', background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
                           {cnt.duty}
@@ -464,6 +804,7 @@ export default function ClientDetailPage() {
                 <div><span style={{ color: '#aaa' }}>고객사 코드:</span> <strong style={{ color: '#fff', fontFamily: 'monospace' }}>{client.code}</strong></div>
                 <div><span style={{ color: '#aaa' }}>업종 분류:</span> <strong style={{ color: '#fff' }}>{client.industry || '미지정'}</strong></div>
                 <div><span style={{ color: '#aaa' }}>계약 상태:</span> <strong style={{ color: client.contract_status === '유지보수 계약중' ? '#38B000' : '#FFB703' }}>{client.contract_status}</strong></div>
+                <div><span style={{ color: '#aaa' }}>정기점검 대상:</span> <strong style={{ color: client.has_periodic_inspection === 1 ? '#C77DFF' : '#aaa' }}>{client.has_periodic_inspection === 1 ? `🔄 진행중 (${client.inspection_cycle || '매월'})` : '미진행 (미대상)'}</strong></div>
                 <div><span style={{ color: '#aaa' }}>계약/등록일자:</span> <strong style={{ color: '#fff' }}>{client.contract_date || '-'}</strong></div>
               </div>
 
@@ -717,6 +1058,443 @@ export default function ClientDetailPage() {
         </div>
       )}
 
+      {/* TAB 4: Client Document Management & Sharing */}
+      {activeTab === 'docs' && (
+        <div className="panel">
+          <div className="panel-header" style={{ marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div>
+              <h2 className="panel-title" style={{ fontSize: '1.1rem', color: '#9D4EDD' }}>📁 고객사 공유 관리 문서 ({filteredDocuments.length}건)</h2>
+              <p style={{ fontSize: '0.82rem', color: '#aaa', margin: 0, marginTop: '0.2rem' }}>계약서, 네트워크 구성도, 점검보고서, 정산서 등 관리문서 첨부 및 공유 링크 제공</p>
+            </div>
+
+            {/* Filter & Upload Action Bar */}
+            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <select
+                value={docFilter}
+                onChange={e => setDocFilter(e.target.value)}
+                style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.82rem' }}
+              >
+                <option value="전체">전체 카테고리</option>
+                <option value="계약서">📄 계약서</option>
+                <option value="네트워크 구성도">🌐 네트워크 구성도</option>
+                <option value="점검보고서">📊 점검보고서</option>
+                <option value="견적/정산서">💰 견적/정산서</option>
+                <option value="매뉴얼/지침서">📘 매뉴얼/지침서</option>
+                <option value="기타">📂 기타 문서</option>
+              </select>
+
+              <input
+                type="text"
+                placeholder="제목, 파일명, 작성자 검색..."
+                value={docSearch}
+                onChange={e => setDocSearch(e.target.value)}
+                style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.82rem', width: '220px' }}
+              />
+
+              <button onClick={() => setIsDocModalOpen(true)} className="btn btn-accent" style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', background: '#9D4EDD', borderColor: '#9D4EDD' }}>
+                ➕ 새 관리 문서 등록
+              </button>
+            </div>
+          </div>
+
+          {docsLoading ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: '#aaa' }}>관리 문서를 불러오는 중...</div>
+          ) : filteredDocuments.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+              {filteredDocuments.map(doc => (
+                <div key={doc.id} style={{ background: 'var(--bg-main)', padding: '1.2rem', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+                      <span className="badge" style={{ background: 'rgba(157,78,221,0.2)', color: '#C77DFF', border: '1px solid rgba(157,78,221,0.4)', fontSize: '0.78rem', fontWeight: 700 }}>
+                        {doc.category}
+                      </span>
+                      <span style={{ fontSize: '0.78rem', color: '#aaa' }}>{doc.createdAt ? doc.createdAt.split(' ')[0] : ''}</span>
+                    </div>
+
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', margin: '0 0 0.5rem 0', wordBreak: 'break-all' }}>
+                      {doc.title}
+                    </h3>
+
+                    {doc.description && (
+                      <p style={{ fontSize: '0.85rem', color: '#bbb', margin: '0 0 0.75rem 0', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {doc.description}
+                      </p>
+                    )}
+
+                    <div style={{ fontSize: '0.8rem', color: '#aaa', background: 'rgba(0,0,0,0.25)', padding: '0.6rem', borderRadius: '6px', marginBottom: '1rem', wordBreak: 'break-all' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#ddd' }}>
+                        <span>📎</span> <strong>{doc.fileName}</strong>
+                      </div>
+                      <div style={{ marginTop: '0.2rem', display: 'flex', justifyContent: 'space-between', color: '#888', fontSize: '0.75rem' }}>
+                        <span>용량: {doc.fileSize}</span>
+                        <span>등록자: {doc.uploadedBy || '담당자'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem' }}>
+                    <a
+                      href={doc.filePath}
+                      download={doc.fileName}
+                      className="btn btn-secondary"
+                      style={{ flex: 1, textDecoration: 'none', textAlign: 'center', fontSize: '0.8rem', padding: '0.4rem 0.6rem', color: '#00B4D8', borderColor: 'rgba(0,180,216,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}
+                    >
+                      📥 다운로드
+                    </a>
+                    <button
+                      onClick={() => handleCopyLink(doc.filePath)}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', color: '#FFB703', borderColor: 'rgba(255,183,3,0.4)' }}
+                      title="다운로드 공유 링크 복사"
+                    >
+                      🔗 링크 복사
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDocument(doc.id, doc.title)}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', color: '#E63946', borderColor: 'rgba(230,57,70,0.4)' }}
+                      title="삭제"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: '#aaa', background: 'var(--bg-main)', borderRadius: '8px' }}>
+              등록된 관리 문서가 없습니다. 상단 '➕ 새 관리 문서 등록' 버튼을 눌러 공유 문서를 추가하세요.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 5: Periodic Inspection Management & Scanned Reports */}
+      {activeTab === 'inspections' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Periodic Inspection Status & Primary Template Panel */}
+          <div className="panel" style={{ borderLeft: '6px solid #9D4EDD' }}>
+            <div className="panel-header" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h2 className="panel-title" style={{ fontSize: '1.1rem', color: '#C77DFF' }}>⭐ 고객사 대표 점검서 양식 (최신 서식)</h2>
+                <p style={{ fontSize: '0.82rem', color: '#aaa', margin: 0, marginTop: '0.2rem' }}>
+                  현재 적용 중인 대표 정기점검서 양식입니다. 새 양식 업로드 시 기존 양식은 히스토리에 자동 보관됩니다.
+                </p>
+              </div>
+
+              <button
+                onClick={() => setIsTemplateModalOpen(true)}
+                className="btn btn-accent"
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', background: '#9D4EDD', borderColor: '#9D4EDD' }}
+              >
+                ➕ 새 점검서 양식 등록
+              </button>
+            </div>
+
+            {(() => {
+              const primaryTemplate = inspectionTemplates.find(t => t.isPrimary) || inspectionTemplates[0];
+              const templateHistory = inspectionTemplates.filter(t => t.id !== primaryTemplate?.id);
+
+              return (
+                <div>
+                  {primaryTemplate ? (
+                    <div style={{ background: 'rgba(157,78,221,0.08)', padding: '1.25rem', borderRadius: '10px', border: '1px solid rgba(157,78,221,0.3)', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.4rem' }}>
+                          <span className="badge" style={{ background: '#9D4EDD', color: '#fff', fontSize: '0.8rem', fontWeight: 700 }}>
+                            ⭐ 대표 점검서 양식
+                          </span>
+                          <span className="badge" style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: '0.78rem' }}>
+                            {primaryTemplate.version || 'v1.0'}
+                          </span>
+                          <span style={{ fontSize: '0.8rem', color: '#aaa' }}>등록일: {primaryTemplate.createdAt ? primaryTemplate.createdAt.split(' ')[0] : ''}</span>
+                        </div>
+                        <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', margin: 0 }}>{primaryTemplate.title}</h3>
+                        <p style={{ fontSize: '0.85rem', color: '#bbb', margin: '0.3rem 0 0 0' }}>📎 파일명: {primaryTemplate.fileName} ({primaryTemplate.fileSize}) | 등록자: {primaryTemplate.uploadedBy || '담당자'}</p>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <a
+                          href={primaryTemplate.filePath}
+                          download={primaryTemplate.fileName}
+                          className="btn btn-accent"
+                          style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                        >
+                          📥 대표 양식 다운로드
+                        </a>
+                        <button
+                          onClick={() => handleCopyLink(primaryTemplate.filePath)}
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.85rem', padding: '0.5rem 0.9rem', color: '#FFB703', borderColor: 'rgba(255,183,3,0.4)' }}
+                        >
+                          🔗 링크 복사
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '2.5rem', textAlign: 'center', color: '#aaa', background: 'var(--bg-main)', borderRadius: '8px', marginBottom: '1rem' }}>
+                      등록된 점검서 양식이 없습니다. '➕ 새 점검서 양식 등록' 버튼으로 서식을 업로드하세요.
+                    </div>
+                  )}
+
+                  {/* Template History List */}
+                  {templateHistory.length > 0 && (
+                    <div style={{ background: 'var(--bg-main)', padding: '1rem 1.25rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <h4 style={{ fontSize: '0.9rem', color: '#aaa', margin: '0 0 0.75rem 0' }}>📜 이전 점검서 양식 히스토리 ({templateHistory.length}건)</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {templateHistory.map(t => (
+                          <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.85rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                              <span style={{ fontSize: '0.78rem', background: 'rgba(255,255,255,0.08)', color: '#ccc', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>{t.version || '이전양식'}</span>
+                              <strong style={{ color: '#ddd' }}>{t.title}</strong>
+                              <span style={{ fontSize: '0.78rem', color: '#888' }}>({t.fileName} - {t.fileSize})</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.75rem', color: '#888', marginRight: '0.5rem' }}>{t.createdAt ? t.createdAt.split(' ')[0] : ''}</span>
+                              <a href={t.filePath} download={t.fileName} className="btn btn-secondary" style={{ textDecoration: 'none', fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}>
+                                📥 다운로드
+                              </a>
+                              <button onClick={() => handleDeleteInspectionItem('template', t.id, t.title)} style={{ background: 'none', border: 'none', color: '#E63946', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Scanned Inspection Reports Panel */}
+          <div className="panel">
+            <div className="panel-header" style={{ marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <div>
+                <h2 className="panel-title" style={{ fontSize: '1.1rem', color: '#00B4D8' }}>📄 정기점검 완료 스캔본 보관소 ({inspectionScans.length}건)</h2>
+                <p style={{ fontSize: '0.82rem', color: '#aaa', margin: 0, marginTop: '0.2rem' }}>실제 점검 후 작성된 정기점검 스캔본 문서 보관 및 조회</p>
+              </div>
+
+              <button
+                onClick={() => setIsScanModalOpen(true)}
+                className="btn btn-accent"
+                style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+              >
+                ➕ 정기점검 스캔본 업로드
+              </button>
+            </div>
+
+            {inspectionsLoading ? (
+              <div style={{ padding: '3rem', textAlign: 'center', color: '#aaa' }}>점검서 스캔본을 불러오는 중...</div>
+            ) : inspectionScans.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
+                {inspectionScans.map(s => (
+                  <div key={s.id} style={{ background: 'var(--bg-main)', padding: '1.2rem', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.55rem' }}>
+                        <span className="badge" style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', fontSize: '0.8rem', fontWeight: 700 }}>
+                          📅 점검일: {s.inspectionDate}
+                        </span>
+                        <span style={{ fontSize: '0.78rem', color: '#aaa' }}>점검자: <strong style={{ color: '#fff' }}>{s.inspector}</strong></span>
+                      </div>
+
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', margin: '0 0 0.4rem 0', wordBreak: 'break-all' }}>
+                        {s.title}
+                      </h3>
+
+                      {s.memo && (
+                        <p style={{ fontSize: '0.83rem', color: '#ccc', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '6px', margin: '0 0 0.75rem 0', lineHeight: '1.4' }}>
+                          📌 특이사항: {s.memo}
+                        </p>
+                      )}
+
+                      <div style={{ fontSize: '0.8rem', color: '#aaa', background: 'rgba(0,0,0,0.25)', padding: '0.6rem', borderRadius: '6px', marginBottom: '1rem', wordBreak: 'break-all' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#ddd' }}>
+                          <span>📎</span> <strong>{s.fileName}</strong>
+                        </div>
+                        <div style={{ marginTop: '0.2rem', display: 'flex', justifyContent: 'space-between', color: '#888', fontSize: '0.75rem' }}>
+                          <span>용량: {s.fileSize}</span>
+                          <span>등록자: {s.uploadedBy || '담당자'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.4rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem' }}>
+                      <a
+                        href={s.filePath}
+                        download={s.fileName}
+                        className="btn btn-secondary"
+                        style={{ flex: 1, textDecoration: 'none', textAlign: 'center', fontSize: '0.8rem', padding: '0.4rem 0.6rem', color: '#00B4D8', borderColor: 'rgba(0,180,216,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem' }}
+                      >
+                        📥 스캔본 다운로드
+                      </a>
+                      <button
+                        onClick={() => handleCopyLink(s.filePath)}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', color: '#FFB703', borderColor: 'rgba(255,183,3,0.4)' }}
+                        title="다운로드 공유 링크 복사"
+                      >
+                        🔗 링크 복사
+                      </button>
+                      <button
+                        onClick={() => handleDeleteInspectionItem('scan', s.id, s.title)}
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem', color: '#E63946', borderColor: 'rgba(230,57,70,0.4)' }}
+                        title="삭제"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: '3.5rem 1rem', textAlign: 'center', color: '#aaa', background: 'var(--bg-main)', borderRadius: '8px' }}>
+                등록된 정기점검 스캔본이 없습니다. 상단 '➕ 정기점검 스캔본 업로드' 버튼을 눌러 스캔 파일을 추가하세요.
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+
+      {/* Upload Inspection Template Modal */}
+      {isTemplateModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '540px', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <h2 className="panel-title" style={{ fontSize: '1.15rem', color: '#C77DFF' }}>⭐ 새 점검서 양식 등록 (대표 양식 설정)</h2>
+              <button onClick={() => setIsTemplateModalOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleUploadTemplate} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>양식 제목 *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="예: (주)아인스텍 2026년 표준 정기점검 양식"
+                  value={templateTitle}
+                  onChange={(e) => setTemplateTitle(e.target.value)}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>점검서 양식 파일 선택 (HXP/HWP/PDF/DOCX/XLSX) *</label>
+                <input
+                  type="file"
+                  required
+                  onChange={(e) => setTemplateFile(e.target.files[0] || null)}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px dashed #9D4EDD', color: 'white', fontSize: '0.85rem' }}
+                />
+                {templateFile && (
+                  <div style={{ fontSize: '0.78rem', color: '#C77DFF', marginTop: '0.3rem' }}>
+                    선택된 파일: <strong>{templateFile.name}</strong> ({(templateFile.size / (1024 * 1024)).toFixed(2)} MB)
+                  </div>
+                )}
+              </div>
+
+              <div style={{ fontSize: '0.8rem', color: '#aaa', background: 'rgba(157,78,221,0.1)', padding: '0.75rem', borderRadius: '6px', borderLeft: '3px solid #9D4EDD' }}>
+                💡 이 파일이 업로드되면 **대표 점검서 양식**으로 즉시 지정되며, 기존 양식은 양식 히스토리 목록으로 이동합니다.
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setIsTemplateModalOpen(false)} className="btn btn-secondary" disabled={uploadingTemplate}>취소</button>
+                <button type="submit" className="btn btn-accent" style={{ background: '#9D4EDD', borderColor: '#9D4EDD' }} disabled={uploadingTemplate}>
+                  {uploadingTemplate ? '업로드 및 대표 설정 중...' : '💾 대표 양식 저장'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Scan Report Modal */}
+      {isScanModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '580px', maxHeight: '92vh', overflowY: 'auto', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <h2 className="panel-title" style={{ fontSize: '1.15rem', color: '#00B4D8' }}>📄 정기점검 완료 스캔본 등록</h2>
+              <button onClick={() => setIsScanModalOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleUploadScan} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>점검 보고서 제목 *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="예: 2026년 3월 정기점검 결과 보고서"
+                  value={scanTitle}
+                  onChange={(e) => setScanTitle(e.target.value)}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>실제 점검 일자 *</label>
+                  <input
+                    type="date"
+                    required
+                    value={scanDate}
+                    onChange={(e) => setScanDate(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>점검 수행자 (엔지니어)</label>
+                  <input
+                    type="text"
+                    placeholder="예: 이강욱 팀장"
+                    value={scanInspector}
+                    onChange={(e) => setScanInspector(e.target.value)}
+                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>점검서 스캔 파일 (PDF / 이미지 / ZIP) *</label>
+                <input
+                  type="file"
+                  required
+                  onChange={(e) => setScanFile(e.target.files[0] || null)}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px dashed var(--color-accent)', color: 'white', fontSize: '0.85rem' }}
+                />
+                {scanFile && (
+                  <div style={{ fontSize: '0.78rem', color: '#00B4D8', marginTop: '0.3rem' }}>
+                    선택된 파일: <strong>{scanFile.name}</strong> ({(scanFile.size / (1024 * 1024)).toFixed(2)} MB)
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>점검 특이사항 및 의견 (선택)</label>
+                <textarea
+                  rows={3}
+                  placeholder="점검 결과 이상 유무, 백본 장비 팬 교체 필요 권고 등 메모..."
+                  value={scanMemo}
+                  onChange={(e) => setScanMemo(e.target.value)}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white', resize: 'vertical' }}
+                ></textarea>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setIsScanModalOpen(false)} className="btn btn-secondary" disabled={uploadingScan}>취소</button>
+                <button type="submit" className="btn btn-accent" disabled={uploadingScan}>
+                  {uploadingScan ? '업로드 및 저장 중...' : '💾 점검서 스캔본 등록'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Edit Profile Modal */}
       {isEditModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
@@ -769,12 +1547,19 @@ export default function ClientDetailPage() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                   {formContacts.map((cnt, idx) => (
-                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1.5fr 0.9fr auto', gap: '0.4rem', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '6px' }}>
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr 1.2fr 1.4fr 0.9fr auto', gap: '0.4rem', alignItems: 'center', background: 'rgba(0,0,0,0.2)', padding: '0.5rem', borderRadius: '6px' }}>
                       <input
                         type="text"
                         placeholder="담당자명"
                         value={cnt.name}
                         onChange={(e) => handleContactChange(idx, 'name', e.target.value)}
+                        style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="직급(과장 등)"
+                        value={cnt.rank || ''}
+                        onChange={(e) => handleContactChange(idx, 'rank', e.target.value)}
                         style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
                       />
                       <input
@@ -793,7 +1578,7 @@ export default function ClientDetailPage() {
                       />
                       <input
                         type="text"
-                        placeholder="직책/직무"
+                        placeholder="담당업무"
                         value={cnt.duty || ''}
                         onChange={(e) => handleContactChange(idx, 'duty', e.target.value)}
                         style={{ padding: '0.45rem', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.8rem' }}
@@ -809,6 +1594,40 @@ export default function ClientDetailPage() {
                       )}
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Periodic Inspection Settings */}
+              <div style={{ background: 'rgba(157,78,221,0.06)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(157,78,221,0.25)' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', color: '#C77DFF', fontWeight: 700, marginBottom: '0.6rem' }}>
+                  🔄 정기점검 실시 유무 및 점검 주기 설정
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#fff', fontSize: '0.85rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={formHasPeriodicInspection}
+                      onChange={(e) => setFormHasPeriodicInspection(e.target.checked)}
+                      style={{ width: '18px', height: '18px', accentColor: '#9D4EDD' }}
+                    />
+                    <span>정기점검 진행 고객사 (점검 대상)</span>
+                  </label>
+
+                  {formHasPeriodicInspection && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.82rem', color: '#aaa' }}>점검 주기:</span>
+                      <select
+                        value={formInspectionCycle}
+                        onChange={(e) => setFormInspectionCycle(e.target.value)}
+                        style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', background: '#0B132B', border: '1px solid #9D4EDD', color: '#fff', fontSize: '0.85rem', fontWeight: 700 }}
+                      >
+                        <option value="매월">📅 매월 (월 1회)</option>
+                        <option value="분기(3개월)">📅 분기 (3개월 1회)</option>
+                        <option value="반기(6개월)">📅 반기 (6개월 1회)</option>
+                        <option value="연간(12개월)">📅 연간 (년 1회)</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 

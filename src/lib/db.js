@@ -221,6 +221,46 @@ db.exec(`
     memo TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS client_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '기타',
+    file_name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size TEXT,
+    uploaded_by TEXT DEFAULT '담당자',
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS client_inspection_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size TEXT,
+    version TEXT DEFAULT 'v1.0',
+    is_primary INTEGER DEFAULT 0,
+    uploaded_by TEXT DEFAULT '담당자',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS client_inspection_scans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    inspection_date TEXT NOT NULL,
+    inspector TEXT NOT NULL,
+    title TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size TEXT,
+    memo TEXT,
+    uploaded_by TEXT DEFAULT '담당자',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Initialize default admin accounts if users table is empty
@@ -256,6 +296,12 @@ try {
   }
   if (!clientCols.some(c => c.name === 'network_config')) {
     db.exec("ALTER TABLE clients ADD COLUMN network_config TEXT");
+  }
+  if (!clientCols.some(c => c.name === 'has_periodic_inspection')) {
+    db.exec("ALTER TABLE clients ADD COLUMN has_periodic_inspection INTEGER DEFAULT 0");
+  }
+  if (!clientCols.some(c => c.name === 'inspection_cycle')) {
+    db.exec("ALTER TABLE clients ADD COLUMN inspection_cycle TEXT DEFAULT '매월'");
   }
 } catch (e) {
   console.warn('Clients migration error', e);

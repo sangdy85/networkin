@@ -86,7 +86,7 @@ export async function GET() {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, industry, contacts, address, contract_status, contract_date, engineer_primary, engineer_secondary, memo, network_config } = body;
+    const { name, industry, contacts, address, contract_status, contract_date, engineer_primary, engineer_secondary, memo, network_config, has_periodic_inspection, inspection_cycle } = body;
 
     if (!name) {
       return NextResponse.json({ error: '고객사명을 입력해주세요.' }, { status: 400 });
@@ -100,8 +100,8 @@ export async function POST(request) {
     const configJson = typeof network_config === 'object' ? JSON.stringify(network_config) : (network_config || '');
 
     const stmt = db.prepare(`
-      INSERT INTO clients (code, name, industry, contact_name, contact_phone, contact_email, contacts, address, contract_status, contract_date, assigned_pm, engineer_primary, engineer_secondary, memo, network_config)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO clients (code, name, industry, contact_name, contact_phone, contact_email, contacts, address, contract_status, contract_date, assigned_pm, engineer_primary, engineer_secondary, memo, network_config, has_periodic_inspection, inspection_cycle)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     const info = stmt.run(
@@ -119,7 +119,9 @@ export async function POST(request) {
       engineer_primary || '',
       engineer_secondary || '',
       memo || '',
-      configJson
+      configJson,
+      has_periodic_inspection ? 1 : 0,
+      inspection_cycle || '매월'
     );
 
     return NextResponse.json({ success: true, id: info.lastInsertRowid, code });
@@ -132,7 +134,7 @@ export async function POST(request) {
 export async function PUT(request) {
   try {
     const body = await request.json();
-    const { id, name, industry, contacts, address, contract_status, contract_date, engineer_primary, engineer_secondary, memo, network_config } = body;
+    const { id, name, industry, contacts, address, contract_status, contract_date, engineer_primary, engineer_secondary, memo, network_config, has_periodic_inspection, inspection_cycle } = body;
 
     if (!id || !name) {
       return NextResponse.json({ error: 'ID와 고객사명이 필요합니다.' }, { status: 400 });
@@ -144,7 +146,7 @@ export async function PUT(request) {
 
     const stmt = db.prepare(`
       UPDATE clients
-      SET name = ?, industry = ?, contact_name = ?, contact_phone = ?, contact_email = ?, contacts = ?, address = ?, contract_status = ?, contract_date = ?, assigned_pm = ?, engineer_primary = ?, engineer_secondary = ?, memo = ?, network_config = ?
+      SET name = ?, industry = ?, contact_name = ?, contact_phone = ?, contact_email = ?, contacts = ?, address = ?, contract_status = ?, contract_date = ?, assigned_pm = ?, engineer_primary = ?, engineer_secondary = ?, memo = ?, network_config = ?, has_periodic_inspection = ?, inspection_cycle = ?
       WHERE id = ?
     `);
 
@@ -163,6 +165,8 @@ export async function PUT(request) {
       engineer_secondary || '',
       memo || '',
       configJson,
+      has_periodic_inspection ? 1 : 0,
+      inspection_cycle || '매월',
       id
     );
 
