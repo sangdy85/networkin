@@ -455,7 +455,7 @@ function ClientDetailPageComponent() {
   const handleCopyLink = (filePath) => {
     const fullUrl = `${window.location.origin}${filePath}`;
     navigator.clipboard.writeText(fullUrl);
-    alert(`다운로드 공유 링크가 클립보드에 복사되었습니다!\n${fullUrl}`);
+    alert(`다운로드 공유 링크가 클립보드에 복사되었습니다!{eq.type ||{eq.type || '기타 장비'}n${fullUrl}`);
   };
 
   const initClientForms = (cli) => {
@@ -728,7 +728,7 @@ function ClientDetailPageComponent() {
       }
     ];
 
-    const safeClientName = client?.name ? client.name.replace(/[/\\?%*:|"<>]/g, '_') : '고객사';
+    const safeClientName = client?.name ? client.name.replace(/[/{eq.type ||{eq.type || '기타 장비'}{eq.type ||{eq.type || '기타 장비'}?%*:|"<>]/g, '_') : '고객사';
 
     try {
       const XLSX = await import('xlsx');
@@ -753,7 +753,7 @@ function ClientDetailPageComponent() {
         headers.join(','),
         ...templateData.map(row => headers.map(h => `"${(row[h] || '').replace(/"/g, '""')}"`).join(','))
       ];
-      const csvContent = '\uFEFF' + csvRows.join('\n');
+      const csvContent = '{eq.type ||{eq.type || '기타 장비'}uFEFF' + csvRows.join('{eq.type ||{eq.type || '기타 장비'}n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
@@ -798,7 +798,7 @@ function ClientDetailPageComponent() {
       } catch (xlsxErr) {
         console.warn('XLSX import failed, parsing as text/CSV:', xlsxErr);
         const text = await file.text();
-        const lines = text.split(/\r?\n/).filter(line => line.trim());
+        const lines = text.split(/{eq.type ||{eq.type || '기타 장비'}r?{eq.type ||{eq.type || '기타 장비'}n/).filter(line => line.trim());
         if (lines.length > 1) {
           const headers = lines[0].split(',').map(h => h.replace(/^["']|["']$/g, '').trim());
           parsed = lines.slice(1).map(line => {
@@ -1350,7 +1350,8 @@ function ClientDetailPageComponent() {
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th style={{ width: '130px' }}>장비 구분/명칭</th>
+                        <th style={{ width: '130px' }}>장비 구분</th>
+                        <th style={{ width: '200px' }}>장비명</th>
                         <th>모델명</th>
                         <th>시리얼 번호 (Serial No)</th>
                         <th style={{ width: '130px', textAlign: 'center' }}>실제 계약 여부</th>
@@ -1368,8 +1369,11 @@ function ClientDetailPageComponent() {
                           <tr key={originalIdx}>
                             <td>
                               <span style={{ fontSize: '0.8rem', background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.25rem 0.6rem', borderRadius: '4px', fontWeight: 700 }}>
-                                {eq.type || eq.name || '기타 장비'}
+                                {eq.type ||{eq.type || '기타 장비'}
                               </span>
+                            </td>
+                            <td style={{ fontWeight: 700, color: '#00B4D8', wordBreak: 'keep-all' }}>
+                              {eq.name || '-'}
                             </td>
                             <td style={{ fontWeight: 700, color: '#fff' }}>
                               {eq.model || '-'}
