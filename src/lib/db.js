@@ -366,4 +366,30 @@ try {
   console.warn('Migration error for maintenance_tickets:', e.message);
 }
 
+// Migration helper for ipt_items
+try {
+  const iptCols = db.prepare("PRAGMA table_info(ipt_items)").all();
+  if (!iptCols.some(c => c.name === 'file_name')) {
+    db.exec("ALTER TABLE ipt_items ADD COLUMN file_name TEXT");
+  }
+  if (!iptCols.some(c => c.name === 'file_path')) {
+    db.exec("ALTER TABLE ipt_items ADD COLUMN file_path TEXT");
+  }
+} catch (e) {
+  console.warn('Migration error for ipt_items:', e.message);
+}
+
+// Migration helper for network_items
+try {
+  const netCols = db.prepare("PRAGMA table_info(network_items)").all();
+  if (!netCols.some(c => c.name === 'file_name')) {
+    db.exec("ALTER TABLE network_items ADD COLUMN file_name TEXT");
+  }
+  if (!netCols.some(c => c.name === 'file_path')) {
+    db.exec("ALTER TABLE network_items ADD COLUMN file_path TEXT");
+  }
+} catch (e) {
+  console.warn('Migration error for network_items:', e.message);
+}
+
 export default db;

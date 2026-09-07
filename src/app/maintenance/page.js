@@ -79,10 +79,15 @@ export default function MaintenancePage() {
     }
   };
 
-  // List of available workers built from registered database users (excluding master admin)
-  const activeUsers = registeredUsers.filter(u => u.id.toLowerCase() !== 'netadmin' && u.name !== '마스터 관리자' && u.role !== '마스터 관리자');
+  // List of available workers built from registered database users (strictly excluding master admin)
+  const activeUsers = registeredUsers.filter(u => 
+    u.id.toLowerCase() !== 'netadmin' && 
+    u.name !== '마스터 관리자' && 
+    !String(u.name || '').includes('마스터') &&
+    u.role !== '마스터 관리자'
+  );
   const workerList = activeUsers.length > 0
-    ? activeUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim())
+    ? activeUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim()).filter(w => !w.includes('마스터') && w.toLowerCase() !== 'netadmin')
     : ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
 
   // Open Create Modal
@@ -94,7 +99,10 @@ export default function MaintenancePage() {
     setFormCategory('네트워크 장애');
     setFormUrgency('긴급');
     setFormStatus('접수');
-    setFormWorkers([currentUser?.name || workerList[0] || '담당자']);
+    const defaultWorker = (currentUser?.name && !currentUser.name.includes('마스터') && currentUser.id !== 'netadmin')
+      ? currentUser.name
+      : (workerList[0] || '김철수 과장');
+    setFormWorkers([defaultWorker]);
     setFormCustomWorker('');
     setFormResolutionNote('');
     setFormDate(new Date().toISOString().split('T')[0]);
@@ -113,7 +121,8 @@ export default function MaintenancePage() {
     setFormCategory(tck.category);
     setFormUrgency(tck.priority || tck.urgency || '보통');
     setFormStatus(tck.status);
-    setFormWorkers(tck.workers || []);
+    const validWorkers = (tck.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin');
+    setFormWorkers(validWorkers.length > 0 ? validWorkers : [workerList[0] || '김철수 과장']);
     setFormCustomWorker('');
     setFormResolutionNote(tck.resolutionNote || '');
     setFormDate(tck.date || new Date().toISOString().split('T')[0]);
@@ -206,7 +215,7 @@ export default function MaintenancePage() {
         category: formCategory,
         priority: formUrgency,
         status: formStatus,
-        workers: formWorkers.length > 0 ? formWorkers : [currentUser?.name || '담당자'],
+        workers: formWorkers.filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin'),
         resolutionNote: formResolutionNote.trim(),
         date: formDate,
         files: allFiles,

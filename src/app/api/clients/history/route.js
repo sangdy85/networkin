@@ -20,6 +20,7 @@ export async function GET(request) {
       maintRows.forEach(m => {
         let workersArr = [];
         try { workersArr = JSON.parse(m.workers || '[]'); } catch (e) { workersArr = m.workers ? [m.workers] : []; }
+        workersArr = workersArr.filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin');
         let filesArr = [];
         if (m.file_path) {
           try {
@@ -59,15 +60,28 @@ export async function GET(request) {
       iptRows.forEach(i => {
         let workersArr = [];
         try { workersArr = JSON.parse(i.workers || '[]'); } catch (e) { workersArr = i.workers ? [i.workers] : []; }
+        workersArr = workersArr.filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin');
+        let filesArr = [];
+        if (i.file_path) {
+          try {
+            if (i.file_path.startsWith('[')) filesArr = JSON.parse(i.file_path);
+            else if (i.file_name) filesArr = [{ fileName: i.file_name, filePath: i.file_path }];
+          } catch (e) {
+            if (i.file_name) filesArr = [{ fileName: i.file_name, filePath: i.file_path }];
+          }
+        }
         history.push({
           id: `IPT-${i.id}`,
           date: i.start_date,
           category: 'IPT (인터넷전화)',
           title: `[${i.work_type}] ${i.title}`,
-          status: '완료',
+          status: i.status || '완료',
           workers: workersArr,
           content: i.content || i.site,
-          badgeColor: '#3B82F6'
+          badgeColor: '#3B82F6',
+          fileName: i.file_name,
+          filePath: i.file_path,
+          files: filesArr
         });
       });
     } catch (e) {}
@@ -83,15 +97,28 @@ export async function GET(request) {
       netRows.forEach(n => {
         let workersArr = [];
         try { workersArr = JSON.parse(n.workers || '[]'); } catch (e) { workersArr = n.workers ? [n.workers] : []; }
+        workersArr = workersArr.filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin');
+        let filesArr = [];
+        if (n.file_path) {
+          try {
+            if (n.file_path.startsWith('[')) filesArr = JSON.parse(n.file_path);
+            else if (n.file_name) filesArr = [{ fileName: n.file_name, filePath: n.file_path }];
+          } catch (e) {
+            if (n.file_name) filesArr = [{ fileName: n.file_name, filePath: n.file_path }];
+          }
+        }
         history.push({
           id: `NET-${n.id}`,
           date: n.start_date,
           category: '네트워크 관리',
           title: `[${n.work_type}] ${n.title}`,
-          status: '완료',
+          status: n.status || '완료',
           workers: workersArr,
           content: n.content || n.site,
-          badgeColor: '#00B4D8'
+          badgeColor: '#00B4D8',
+          fileName: n.file_name,
+          filePath: n.file_path,
+          files: filesArr
         });
       });
     } catch (e) {}

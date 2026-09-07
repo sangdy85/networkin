@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 const INITIAL_IPT_ITEMS = [];
 
-const WORK_TYPES = ['작업', '정기점검', '유지보수', '장애처리', '구축', '기타'];
+const WORK_TYPES = ['장애', '유지보수', '작업', '정기점검', '구축', '기타'];
 const COMPANY_WORKERS = ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
 
 export default function IPTPage() {
@@ -13,6 +13,7 @@ export default function IPTPage() {
 
   const [items, setItems] = useState(INITIAL_IPT_ITEMS);
   const [registeredUsers, setRegisteredUsers] = useState([]);
+  const [clientList, setClientList] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -22,7 +23,7 @@ export default function IPTPage() {
   const [viewItem, setViewItem] = useState(null);
 
   // Form State
-  const [formWorkType, setFormWorkType] = useState('작업');
+  const [formWorkType, setFormWorkType] = useState('장애');
   const [formCustomWorkType, setFormCustomWorkType] = useState('');
   const [formTitle, setFormTitle] = useState('');
   const [formStartDate, setFormStartDate] = useState('2026-08-19');
@@ -34,11 +35,15 @@ export default function IPTPage() {
   const [formWorkers, setFormWorkers] = useState(['박민우 대리']);
   const [formCustomWorker, setFormCustomWorker] = useState('');
   const [formContent, setFormContent] = useState('');
+  const [formExistingFiles, setFormExistingFiles] = useState([]);
+  const [formNewFiles, setFormNewFiles] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Fetch from Real Backend SQLite API `/api/ipt` & `/api/auth/users`
+  // Fetch from Real Backend SQLite API `/api/ipt`, `/api/auth/users`, `/api/clients`
   useEffect(() => {
     fetchItemsFromAPI();
     fetchUsersFromAPI();
+    fetchClientsFromAPI();
   }, []);
 
   const fetchItemsFromAPI = async () => {
@@ -67,26 +72,49 @@ export default function IPTPage() {
     }
   };
 
-  const activeUsers = registeredUsers.filter(u => u.id.toLowerCase() !== 'netadmin' && u.name !== '마스터 관리자' && u.role !== '마스터 관리자');
+  const fetchClientsFromAPI = async () => {
+    try {
+      const res = await fetch('/api/clients');
+      if (res.ok) {
+        const data = await res.json();
+        setClientList(data || []);
+      }
+    } catch (e) {
+      console.warn('Fetch clients error', e);
+    }
+  };
+
+  const activeUsers = registeredUsers.filter(u => 
+    u.id.toLowerCase() !== 'netadmin' && 
+    u.name !== '마스터 관리자' && 
+    !String(u.name || '').includes('마스터') &&
+    u.role !== '마스터 관리자'
+  );
   const workerList = activeUsers.length > 0
-    ? activeUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim())
+    ? activeUsers.map(u => `${u.name}${u.rank ? ' ' + u.rank : ''}`.trim()).filter(w => !w.includes('마스터') && w.toLowerCase() !== 'netadmin')
     : ['이강욱 팀장', '김철수 과장', '박민우 대리', '최현우 과장'];
 
   // Open Create Modal
   const handleOpenCreateModal = () => {
     setEditingItem(null);
-    setFormWorkType('작업');
+    setFormWorkType('장애');
     setFormCustomWorkType('');
     setFormTitle('');
-    setFormStartDate('2026-08-19');
+    const today = new Date().toISOString().split('T')[0];
+    setFormStartDate(today);
     setFormStartTime('09:00');
-    setFormEndDate('2026-08-19');
+    setFormEndDate(today);
     setFormEndTime('18:00');
     setFormIncludeWeekends(false);
     setFormSite('');
-    setFormWorkers([currentUser?.name || currentUser?.id || '박민우 대리']);
+    const defaultWorker = (currentUser?.name && !currentUser.name.includes('마스터') && currentUser.id !== 'netadmin')
+      ? currentUser.name
+      : (workerList[0] || '박민우 대리');
+    setFormWorkers([defaultWorker]);
     setFormCustomWorker('');
     setFormContent('');
+    setFormExistingFiles([]);
+    setFormNewFiles([]);
     setIsModalOpen(true);
   };
 
@@ -102,9 +130,12 @@ export default function IPTPage() {
     setFormEndTime(item.endTime || '18:00');
     setFormIncludeWeekends(item.includeWeekends ?? false);
     setFormSite(item.site);
-    setFormWorkers(item.workers || []);
+    const validWorkers = (item.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin');
+    setFormWorkers(validWorkers.length > 0 ? validWorkers : [workerList[0] || '박민우 대리']);
     setFormCustomWorker('');
     setFormContent(item.content || '');
+    setFormExistingFiles(item.files && item.files.length > 0 ? item.files : (item.filePath ? [{ fileName: item.fileName || '첨부파일', filePath: item.filePath }] : []));
+    setFormNewFiles([]);
     setIsModalOpen(true);
   };
 
@@ -134,6 +165,27 @@ export default function IPTPage() {
       return;
     }
 
+    setIsUploading(true);
+    let uploadedFiles = [...formExistingFiles];
+    if (formNewFiles.length > 0) {
+      for (const f of formNewFiles) {
+        const fd = new FormData();
+        fd.append('file', f);
+        try {
+          const upRes = await fetch('/api/common/upload', { method: 'POST', body: fd });
+          if (upRes.ok) {
+            const upData = await upRes.json();
+            uploadedFiles.push({ fileName: upData.fileName, filePath: upData.filePath });
+          }
+        } catch (err) {
+          console.error('File upload error:', err);
+        }
+      }
+    }
+    setIsUploading(false);
+
+    const cleanWorkers = formWorkers.filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin');
+
     const itemData = {
       id: editingItem ? editingItem.id : `IPT-2026-${String(items.length + 10).padStart(3, '0')}`,
       workType: formWorkType,
@@ -145,9 +197,12 @@ export default function IPTPage() {
       endTime: formEndTime,
       includeWeekends: formIncludeWeekends,
       site: formSite.trim(),
-      workers: formWorkers,
+      workers: cleanWorkers.length > 0 ? cleanWorkers : [workerList[0] || '박민우 대리'],
       content: formContent.trim(),
-      status: '진행중'
+      status: '진행중',
+      files: uploadedFiles,
+      fileName: uploadedFiles.map(f => f.fileName).join(', '),
+      filePath: uploadedFiles.length > 0 ? uploadedFiles[0].filePath : null
     };
 
     try {
@@ -304,11 +359,19 @@ export default function IPTPage() {
                 <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>고객사명 (사이트명) *</label>
                 <input
                   type="text"
+                  list="ipt-clients-list"
                   value={formSite}
                   onChange={(e) => setFormSite(e.target.value)}
-                  placeholder="고객사명 / 사이트명을 입력하세요"
+                  placeholder="고객사명(사이트명)을 선택하거나 직접 입력하세요"
                   style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
                 />
+                <datalist id="ipt-clients-list">
+                  {clientList.map(c => (
+                    <option key={c.id || c.name} value={c.name}>
+                      {c.site ? `${c.name} (${c.site})` : c.name}
+                    </option>
+                  ))}
+                </datalist>
               </div>
 
               {/* Date & Time Controls */}
@@ -423,9 +486,70 @@ export default function IPTPage() {
                 ></textarea>
               </div>
 
+              {/* 첨부파일 업로드 및 관리 */}
+              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.9rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: 'var(--color-accent)', fontWeight: 600, marginBottom: '0.4rem' }}>
+                  📎 관련 문서 / 사진 첨부파일 (다중 선택 가능)
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setFormNewFiles(prev => [...prev, ...Array.from(e.target.files)]);
+                    }
+                  }}
+                  style={{ fontSize: '0.82rem', color: '#aaa', marginBottom: '0.5rem' }}
+                />
+
+                {formExistingFiles.length > 0 && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>기존 등록 파일:</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      {formExistingFiles.map((f, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,180,216,0.1)', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem' }}>
+                          <a href={f.filePath} target="_blank" rel="noopener noreferrer" style={{ color: '#00B4D8', textDecoration: 'none' }}>
+                            📄 {f.fileName}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => setFormExistingFiles(formExistingFiles.filter((_, i) => i !== idx))}
+                            style={{ background: 'none', border: 'none', color: '#ff4d4f', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.3rem' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {formNewFiles.length > 0 && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#4ade80', display: 'block', marginBottom: '0.3rem' }}>추가 등록 대기 파일 ({formNewFiles.length}개):</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      {formNewFiles.map((f, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(74,222,128,0.1)', padding: '0.35rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem' }}>
+                          <span style={{ color: '#4ade80' }}>🆕 {f.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setFormNewFiles(formNewFiles.filter((_, i) => i !== idx))}
+                            style={{ background: 'none', border: 'none', color: '#ff4d4f', cursor: 'pointer', fontSize: '0.9rem', padding: '0 0.3rem' }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">취소</button>
-                <button type="submit" className="btn btn-accent">{editingItem ? 'DB 수정 저장' : 'IPT 작업 DB 등록'}</button>
+                <button type="submit" className="btn btn-accent" disabled={isUploading}>
+                  {isUploading ? '업로드 및 저장 중...' : (editingItem ? 'DB 수정 저장' : 'IPT 작업 DB 등록')}
+                </button>
               </div>
             </form>
           </div>
@@ -439,7 +563,7 @@ export default function IPTPage() {
           background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(5px)',
           zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
         }}>
-          <div className="panel" style={{ width: '100%', maxWidth: '600px', background: 'var(--bg-card)' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-card)' }}>
             <div className="panel-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1rem' }}>
               <div>
                 <span style={{ fontSize: '0.8rem', color: 'var(--color-accent)', fontWeight: 700 }}>
@@ -460,7 +584,7 @@ export default function IPTPage() {
               <div>
                 <span style={{ color: '#aaa', display: 'block', marginBottom: '0.4rem' }}>👷 배정 작업자:</span>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                  {viewItem.workers.map((w, i) => (
+                  {(viewItem.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin').map((w, i) => (
                     <span key={i} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.29rem 0.6rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}>
                       👤 {w}
                     </span>
@@ -472,6 +596,38 @@ export default function IPTPage() {
                 <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid var(--color-accent)' }}>
                   <span style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>📌 작업 상세 내용:</span>
                   <p style={{ color: '#ddd', fontSize: '0.88rem', lineHeight: '1.6', whiteSpace: 'pre-line' }}>{viewItem.content}</p>
+                </div>
+              )}
+
+              {/* 첨부파일 리스트 및 다운로드 링크 */}
+              {((viewItem.files && viewItem.files.length > 0) || viewItem.filePath) && (
+                <div style={{ background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--color-accent)', fontWeight: 600, display: 'block', marginBottom: '0.5rem' }}>📎 첨부파일:</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {(viewItem.files && viewItem.files.length > 0 ? viewItem.files : [{ fileName: viewItem.fileName || '첨부파일', filePath: viewItem.filePath }]).map((f, idx) => (
+                      <a
+                        key={idx}
+                        href={f.filePath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={f.fileName}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          color: '#00B4D8',
+                          fontSize: '0.85rem',
+                          textDecoration: 'none',
+                          background: 'rgba(0,180,216,0.1)',
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '6px',
+                          width: 'fit-content'
+                        }}
+                      >
+                        📥 {f.fileName}
+                      </a>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -507,8 +663,19 @@ export default function IPTPage() {
             {filteredItems.length > 0 ? (
               filteredItems.map(item => (
                 <tr key={item.id}>
-                  <td style={{ fontWeight: 600, color: '#fff', cursor: 'pointer' }} onClick={() => setViewItem(item)}>
-                    {item.title}
+                  <td
+                    style={{ fontWeight: 600, color: '#fff', cursor: 'pointer' }}
+                    onClick={() => setViewItem(item)}
+                    title="상세 내용 보기"
+                  >
+                    <span style={{ borderBottom: '1px dashed rgba(59,130,246,0.6)' }}>
+                      {item.title}
+                    </span>
+                    {((item.files && item.files.length > 0) || item.filePath) && (
+                      <span style={{ marginLeft: '0.4rem', fontSize: '0.75rem', background: 'rgba(59,130,246,0.2)', color: '#60a5fa', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                        📎 {item.files?.length || 1}
+                      </span>
+                    )}
                   </td>
                   <td>
                     <span style={{ fontSize: '0.78rem', background: 'rgba(59,130,246,0.15)', color: '#3B82F6', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
@@ -525,7 +692,7 @@ export default function IPTPage() {
                     </span>
                   </td>
                   <td style={{ fontSize: '0.82rem' }}>
-                    {item.workers.map((w, idx) => (
+                    {(item.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin').map((w, idx) => (
                       <span key={idx} style={{ background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.4rem', borderRadius: '4px', marginRight: '0.2rem' }}>
                         {w}
                       </span>

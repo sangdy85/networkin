@@ -141,6 +141,9 @@ function ClientDetailPageComponent() {
   const [excelParsedData, setExcelParsedData] = useState([]);
   const [excelImportMode, setExcelImportMode] = useState('append'); // 'append' | 'replace'
 
+  // History Detail Viewer Modal State
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState(null);
+
   // Fetch client details, users, documents & inspections
   useEffect(() => {
     if (clientId) {
@@ -932,9 +935,6 @@ function ClientDetailPageComponent() {
           <button onClick={() => setIsEditModalOpen(true)} className="btn btn-accent" style={{ fontSize: '0.85rem', padding: '0.5rem 0.9rem' }}>
             ✏️ 정보 수정
           </button>
-          <Link href="/maintenance" className="btn btn-secondary" style={{ textDecoration: 'none', fontSize: '0.85rem', padding: '0.5rem 0.9rem', color: '#E63946', borderColor: '#E63946' }}>
-            🚨 장애/유지보수 접수
-          </Link>
           <button onClick={handleDeleteClient} className="btn btn-secondary" style={{ fontSize: '0.85rem', padding: '0.5rem 0.9rem', color: '#aaa' }}>
             🗑️ 삭제
           </button>
@@ -1215,7 +1215,13 @@ function ClientDetailPageComponent() {
                       </span>
                     </div>
 
-                    <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', margin: 0, marginBottom: '0.3rem' }}>{h.title}</h3>
+                    <h3
+                      style={{ fontSize: '1rem', fontWeight: 700, color: '#00B4D8', margin: 0, marginBottom: '0.3rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                      onClick={() => setSelectedHistoryItem(h)}
+                      title="클릭하여 상세 정보 보기"
+                    >
+                      🔍 {h.title}
+                    </h3>
                     <div style={{ fontSize: '0.85rem', color: '#ccc', lineHeight: '1.5' }}>{h.content}</div>
                     {Array.isArray(h.files) && h.files.length > 0 ? (
                       <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
@@ -1235,7 +1241,7 @@ function ClientDetailPageComponent() {
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {(h.workers || []).map((w, idx) => (
+                    {(h.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin').map((w, idx) => (
                       <span key={idx} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600 }}>
                         👤 {w}
                       </span>
@@ -2014,6 +2020,79 @@ function ClientDetailPageComponent() {
               <button onClick={handleConfirmExcelImport} className="btn btn-accent" style={{ background: '#00B4D8', borderColor: '#00B4D8' }}>
                 ✅ 데이터 적용하기
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🔍 작업/장애 이력 상세 모달 */}
+      {selectedHistoryItem && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                  <span className="badge" style={{ background: selectedHistoryItem.badgeColor || 'var(--color-primary)', color: '#fff', fontSize: '0.78rem', fontWeight: 700 }}>
+                    {selectedHistoryItem.category}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: '#aaa', fontWeight: 600 }}>📅 {selectedHistoryItem.date}</span>
+                  <span className="badge" style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: '0.75rem' }}>
+                    {selectedHistoryItem.status}
+                  </span>
+                </div>
+                <h2 className="panel-title" style={{ fontSize: '1.25rem', color: '#fff' }}>{selectedHistoryItem.title}</h2>
+              </div>
+              <button onClick={() => setSelectedHistoryItem(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem' }}>
+              <div>
+                <span style={{ color: '#aaa', display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem' }}>👷 배정 작업자:</span>
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  {(selectedHistoryItem.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin').length > 0 ? (
+                    (selectedHistoryItem.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin').map((w, idx) => (
+                      <span key={idx} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}>
+                        👤 {w}
+                      </span>
+                    ))
+                  ) : (
+                    <span style={{ color: '#888', fontSize: '0.85rem' }}>배정 작업자 없음</span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid var(--color-accent)' }}>
+                <span style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>📝 상세 작업 및 조치 내용:</span>
+                <p style={{ color: '#ddd', fontSize: '0.9rem', lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>
+                  {selectedHistoryItem.content || '작성된 상세 내용이 없습니다.'}
+                </p>
+              </div>
+
+              {/* Attachments */}
+              {((Array.isArray(selectedHistoryItem.files) && selectedHistoryItem.files.length > 0) || (selectedHistoryItem.fileName && selectedHistoryItem.filePath)) && (
+                <div style={{ background: 'rgba(0,180,216,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(0,180,216,0.2)' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#00B4D8', fontWeight: 700, display: 'block', marginBottom: '0.4rem' }}>
+                    📁 첨부파일 ({selectedHistoryItem.files?.length || 1}개):
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {Array.isArray(selectedHistoryItem.files) && selectedHistoryItem.files.length > 0 ? (
+                      selectedHistoryItem.files.map((f, i) => (
+                        <a key={i} href={f.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.82rem', color: '#00B4D8', background: 'rgba(0,180,216,0.15)', padding: '0.3rem 0.7rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(0,180,216,0.3)' }}>
+                          📥 {f.fileName} {f.fileSize ? `(${f.fileSize})` : ''}
+                        </a>
+                      ))
+                    ) : (
+                      <a href={selectedHistoryItem.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.82rem', color: '#00B4D8', background: 'rgba(0,180,216,0.15)', padding: '0.3rem 0.7rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(0,180,216,0.3)' }}>
+                        📥 {selectedHistoryItem.fileName}
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+              <button onClick={() => setSelectedHistoryItem(null)} className="btn btn-secondary">닫기</button>
             </div>
           </div>
         </div>
