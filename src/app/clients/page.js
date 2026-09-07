@@ -66,7 +66,7 @@ export default function ClientsPage() {
   };
 
   // Registered Engineer user list (excluding master admin)
-  const engineerUsers = registeredUsers.filter(u => u.id.toLowerCase() !== 'netadmin' && u.name !== '마스터 관리자' && u.role !== '마스터 관리자');
+  const engineerUsers = (registeredUsers || []).filter(u => (u?.id || '').toLowerCase() !== 'netadmin' && u?.name !== '마스터 관리자' && u?.role !== '마스터 관리자');
 
   // Contact person helper handlers
   const handleAddContact = () => {

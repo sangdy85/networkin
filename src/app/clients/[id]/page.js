@@ -442,7 +442,7 @@ export default function ClientDetailPage() {
   };
 
   // Engineer user list (excluding master admin)
-  const engineerUsers = registeredUsers.filter(u => u.id.toLowerCase() !== 'netadmin' && u.name !== '마스터 관리자' && u.role !== '마스터 관리자');
+  const engineerUsers = (registeredUsers || []).filter(u => (u?.id || '').toLowerCase() !== 'netadmin' && u?.name !== '마스터 관리자' && u?.role !== '마스터 관리자');
 
   // Contact helper handlers
   const handleAddContact = () => {
@@ -787,11 +787,11 @@ export default function ClientDetailPage() {
 
   // History Filtering
   const filteredHistory = history.filter(h => {
-    const typeMatch = historyFilter === '전체' || h.category.includes(historyFilter);
+    const typeMatch = historyFilter === '전체' || (h.category || '').includes(historyFilter);
     const searchMatch = !historySearch.trim() ||
       (h.title || '').toLowerCase().includes(historySearch.toLowerCase()) ||
       (h.content || '').toLowerCase().includes(historySearch.toLowerCase()) ||
-      (h.workers || []).some(w => w.toLowerCase().includes(historySearch.toLowerCase()));
+      (h.workers || []).some(w => String(w || '').toLowerCase().includes(historySearch.toLowerCase()));
 
     return typeMatch && searchMatch;
   });
