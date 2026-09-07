@@ -128,7 +128,7 @@ export function AuthProvider({ children }) {
   const createAccount = async (accountData) => {
     const { id } = accountData;
 
-    if (users.some((u) => u.id.toLowerCase() === id.toLowerCase())) {
+    if (users.some((u) => (u?.id || '').toLowerCase() === (id || '').toLowerCase())) {
       return { success: false, message: '이미 존재하는 아이디입니다.' };
     }
 
@@ -162,7 +162,7 @@ export function AuthProvider({ children }) {
 
       if (res.ok) {
         await fetchUsersFromAPI();
-        if (currentUser?.id.toLowerCase() === userId.toLowerCase()) {
+        if ((currentUser?.id || '').toLowerCase() === (userId || '').toLowerCase()) {
           saveCurrentUserState({ ...currentUser, ...updatedFields });
         }
         return { success: true };
