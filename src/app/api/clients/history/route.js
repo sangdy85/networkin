@@ -48,9 +48,14 @@ export async function GET(request) {
       });
     } catch (e) {}
 
-    // 2. IPT Items
+    // 2. IPT Items (연동된 중복 티켓 제외)
     try {
-      const iptRows = db.prepare('SELECT * FROM ipt_items WHERE site LIKE ? OR title LIKE ?').all(searchTerm, searchTerm);
+      const iptRows = db.prepare(`
+        SELECT * FROM ipt_items 
+        WHERE (site LIKE ? OR title LIKE ?)
+          AND id NOT LIKE 'IPT-MNT-%'
+          AND (content IS NULL OR content NOT LIKE '[장애처리 연동 티켓%')
+      `).all(searchTerm, searchTerm);
       iptRows.forEach(i => {
         let workersArr = [];
         try { workersArr = JSON.parse(i.workers || '[]'); } catch (e) { workersArr = i.workers ? [i.workers] : []; }
@@ -67,9 +72,14 @@ export async function GET(request) {
       });
     } catch (e) {}
 
-    // 3. Network Items
+    // 3. Network Items (연동된 중복 티켓 제외)
     try {
-      const netRows = db.prepare('SELECT * FROM network_items WHERE site LIKE ? OR title LIKE ?').all(searchTerm, searchTerm);
+      const netRows = db.prepare(`
+        SELECT * FROM network_items 
+        WHERE (site LIKE ? OR title LIKE ?)
+          AND id NOT LIKE 'NET-MNT-%'
+          AND (content IS NULL OR content NOT LIKE '[장애처리 연동 티켓%')
+      `).all(searchTerm, searchTerm);
       netRows.forEach(n => {
         let workersArr = [];
         try { workersArr = JSON.parse(n.workers || '[]'); } catch (e) { workersArr = n.workers ? [n.workers] : []; }
