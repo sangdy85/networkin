@@ -918,28 +918,28 @@ export default function ClientDetailPage() {
         <div className="panel" style={{ padding: '1rem', background: 'rgba(56,176,0,0.06)', borderLeft: '4px solid #38B000' }}>
           <div style={{ fontSize: '0.78rem', color: '#aaa' }}>수행 작업 이력</div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#38B000', marginTop: '0.2rem' }}>
-            {history.length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>건</span>
+            {(history || []).length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>건</span>
           </div>
         </div>
 
         <div className="panel" style={{ padding: '1rem', background: 'rgba(255,183,3,0.06)', borderLeft: '4px solid #FFB703' }}>
           <div style={{ fontSize: '0.78rem', color: '#aaa' }}>유지보수 대상 장비</div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FFB703', marginTop: '0.2rem' }}>
-            {netConfig.equipments.length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>대</span>
+            {(netConfig?.equipments || []).length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>대</span>
           </div>
         </div>
 
         <div className="panel" style={{ padding: '1rem', background: 'rgba(157,78,221,0.06)', borderLeft: '4px solid #9D4EDD' }}>
           <div style={{ fontSize: '0.78rem', color: '#aaa' }}>점검서 스캔본</div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#C77DFF', marginTop: '0.2rem' }}>
-            {inspectionScans.length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>건</span>
+            {(inspectionScans || []).length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>건</span>
           </div>
         </div>
 
         <div className="panel" style={{ padding: '1rem', background: 'rgba(0,180,216,0.06)', borderLeft: '4px solid #00B4D8' }}>
           <div style={{ fontSize: '0.78rem', color: '#aaa' }}>공유 관리 문서</div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#00B4D8', marginTop: '0.2rem' }}>
-            {documents.length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>건</span>
+            {(documents || []).length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>건</span>
           </div>
         </div>
       </div>
