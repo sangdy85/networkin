@@ -20,6 +20,7 @@ export async function GET() {
       }
       return {
         ...r,
+        clientId: r.client_id,
         workType: r.work_type,
         customWorkType: r.custom_work_type,
         startDate: r.start_date,
@@ -43,7 +44,7 @@ export async function GET() {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { id, workType, customWorkType, title, startDate, startTime, endDate, endTime, includeWeekends, site, workers, content, status, fileName, filePath, files } = body;
+    const { id, clientId, client_id, workType, customWorkType, title, startDate, startTime, endDate, endTime, includeWeekends, site, workers, content, status, fileName, filePath, files } = body;
 
     let savedFilePath = filePath || null;
     let savedFileName = fileName || null;
@@ -55,12 +56,13 @@ export async function POST(req) {
     const cleanWorkers = (workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin');
 
     const stmt = db.prepare(`
-      INSERT INTO network_items (id, work_type, custom_work_type, title, start_date, start_time, end_date, end_time, include_weekends, site, workers, content, status, file_name, file_path)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO network_items (id, client_id, work_type, custom_work_type, title, start_date, start_time, end_date, end_time, include_weekends, site, workers, content, status, file_name, file_path)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
       id || `NET-2026-${String(Date.now()).slice(-4)}`,
+      clientId || client_id || null,
       workType || '작업',
       customWorkType || '',
       title,
@@ -87,7 +89,7 @@ export async function POST(req) {
 export async function PUT(req) {
   try {
     const body = await req.json();
-    const { id, workType, customWorkType, title, startDate, startTime, endDate, endTime, includeWeekends, site, workers, content, status, fileName, filePath, files } = body;
+    const { id, clientId, client_id, workType, customWorkType, title, startDate, startTime, endDate, endTime, includeWeekends, site, workers, content, status, fileName, filePath, files } = body;
 
     let savedFilePath = filePath;
     let savedFileName = fileName;
@@ -100,9 +102,10 @@ export async function PUT(req) {
 
     let sql = `
       UPDATE network_items
-      SET work_type = ?, custom_work_type = ?, title = ?, start_date = ?, start_time = ?, end_date = ?, end_time = ?, include_weekends = ?, site = ?, workers = ?, content = ?, status = ?
+      SET client_id = ?, work_type = ?, custom_work_type = ?, title = ?, start_date = ?, start_time = ?, end_date = ?, end_time = ?, include_weekends = ?, site = ?, workers = ?, content = ?, status = ?
     `;
     const params = [
+      clientId || client_id || null,
       workType,
       customWorkType || '',
       title,

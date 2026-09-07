@@ -17,6 +17,7 @@ db.pragma('journal_mode = WAL');
 db.exec(`
   CREATE TABLE IF NOT EXISTS ipt_items (
     id TEXT PRIMARY KEY,
+    client_id INTEGER,
     work_type TEXT NOT NULL,
     custom_work_type TEXT,
     title TEXT NOT NULL,
@@ -34,6 +35,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS network_items (
     id TEXT PRIMARY KEY,
+    client_id INTEGER,
     work_type TEXT NOT NULL,
     custom_work_type TEXT,
     title TEXT NOT NULL,
@@ -369,6 +371,9 @@ try {
 // Migration helper for ipt_items
 try {
   const iptCols = db.prepare("PRAGMA table_info(ipt_items)").all();
+  if (!iptCols.some(c => c.name === 'client_id')) {
+    db.exec("ALTER TABLE ipt_items ADD COLUMN client_id INTEGER");
+  }
   if (!iptCols.some(c => c.name === 'file_name')) {
     db.exec("ALTER TABLE ipt_items ADD COLUMN file_name TEXT");
   }
@@ -382,6 +387,9 @@ try {
 // Migration helper for network_items
 try {
   const netCols = db.prepare("PRAGMA table_info(network_items)").all();
+  if (!netCols.some(c => c.name === 'client_id')) {
+    db.exec("ALTER TABLE network_items ADD COLUMN client_id INTEGER");
+  }
   if (!netCols.some(c => c.name === 'file_name')) {
     db.exec("ALTER TABLE network_items ADD COLUMN file_name TEXT");
   }
@@ -390,6 +398,48 @@ try {
   }
 } catch (e) {
   console.warn('Migration error for network_items:', e.message);
+}
+
+// Seed/Link existing work items to clients if not linked
+try {
+  // 1. Link NET-2026-001 (천안 1공장 현장) to Samsung Electronics Cheonan (client ID: 2)
+  db.exec(`
+    UPDATE network_items 
+    SET client_id = 2, site = '삼성전자 천안사업장 (천안 1공장 현장)'
+    WHERE id = 'NET-2026-001' AND (client_id IS NULL OR client_id = 0)
+  `);
+
+  // 2. Ensure (주)대성물류 천안센터 exists in clients and link IPT-2026-001
+  const daesung = db.prepare("SELECT * FROM clients WHERE name LIKE '%대성물류%'").get();
+  let daesungId = daesung?.id;
+  if (!daesung) {
+    const insertRes = db.prepare(`
+      INSERT INTO clients (code, name, industry, contact_name, contact_phone, contact_email, address, contract_status, contract_date, assigned_pm, memo, contacts, engineer_primary, engineer_secondary, network_config)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'CLI-2026-004',
+      '(주)대성물류 천안센터',
+      '물류/유통',
+      '박민우 대리',
+      '010-4567-8901',
+      'mw.park@daesung.com',
+      '충남 천안시 동남구 풍세면 풍세산단로 77',
+      '유지보수 계약중',
+      '2026-04-01',
+      '박민우 대리',
+      'IPT 교환기 및 유무선 네트워크 유지보수',
+      '[]',
+      '박민우 대리',
+      '김철수 과장',
+      '{}'
+    );
+    daesungId = insertRes.lastInsertRowid;
+  }
+  if (daesungId) {
+    db.prepare("UPDATE ipt_items SET client_id = ?, site = '대성물류 천안센터 3층' WHERE id = 'IPT-2026-001' AND (client_id IS NULL OR client_id = 0)").run(daesungId);
+  }
+} catch (e) {
+  console.warn('Linking error:', e.message);
 }
 
 export default db;

@@ -31,6 +31,7 @@ export default function IPTPage() {
   const [formEndDate, setFormEndDate] = useState('2026-08-19');
   const [formEndTime, setFormEndTime] = useState('18:00');
   const [formIncludeWeekends, setFormIncludeWeekends] = useState(false);
+  const [formClientId, setFormClientId] = useState('');
   const [formSite, setFormSite] = useState('');
   const [formWorkers, setFormWorkers] = useState(['박민우 대리']);
   const [formCustomWorker, setFormCustomWorker] = useState('');
@@ -106,6 +107,7 @@ export default function IPTPage() {
     setFormEndDate(today);
     setFormEndTime('18:00');
     setFormIncludeWeekends(false);
+    setFormClientId('');
     setFormSite('');
     const defaultWorker = (currentUser?.name && !currentUser.name.includes('마스터') && currentUser.id !== 'netadmin')
       ? currentUser.name
@@ -129,6 +131,12 @@ export default function IPTPage() {
     setFormEndDate(item.endDate || item.startDate);
     setFormEndTime(item.endTime || '18:00');
     setFormIncludeWeekends(item.includeWeekends ?? false);
+    let matchedClientId = item.clientId || '';
+    if (!matchedClientId && item.site && clientList.length > 0) {
+      const cMatch = clientList.find(c => item.site.includes(c.name) || c.name.includes(item.site));
+      if (cMatch) matchedClientId = cMatch.id;
+    }
+    setFormClientId(matchedClientId ? String(matchedClientId) : '');
     setFormSite(item.site);
     const validWorkers = (item.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin');
     setFormWorkers(validWorkers.length > 0 ? validWorkers : [workerList[0] || '박민우 대리']);
@@ -188,6 +196,7 @@ export default function IPTPage() {
 
     const itemData = {
       id: editingItem ? editingItem.id : `IPT-2026-${String(items.length + 10).padStart(3, '0')}`,
+      clientId: formClientId ? Number(formClientId) : null,
       workType: formWorkType,
       customWorkType: formWorkType === '기타' ? formCustomWorkType.trim() : '',
       title: formTitle.trim(),
@@ -355,23 +364,40 @@ export default function IPTPage() {
                 />
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.82rem', color: '#aaa', marginBottom: '0.3rem' }}>고객사명 (사이트명) *</label>
-                <input
-                  type="text"
-                  list="ipt-clients-list"
-                  value={formSite}
-                  onChange={(e) => setFormSite(e.target.value)}
-                  placeholder="고객사명(사이트명)을 선택하거나 직접 입력하세요"
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white' }}
-                />
-                <datalist id="ipt-clients-list">
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.85rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <label style={{ display: 'block', fontSize: '0.82rem', color: '#00B4D8', fontWeight: 600, marginBottom: '0.35rem' }}>
+                  🏢 고객사 선택 (등록된 고객사)
+                </label>
+                <select
+                  value={formClientId}
+                  onChange={(e) => {
+                    const selId = e.target.value;
+                    setFormClientId(selId);
+                    const foundC = clientList.find(c => String(c.id) === String(selId));
+                    if (foundC) {
+                      setFormSite(foundC.site ? `${foundC.name} (${foundC.site})` : foundC.name);
+                    }
+                  }}
+                  style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '6px', background: '#0B132B', border: '1px solid var(--border-color)', color: 'white', marginBottom: '0.65rem', fontSize: '0.85rem' }}
+                >
+                  <option value="">-- 등록된 고객사 목록에서 직접 선택 (자동 연동) --</option>
                   {clientList.map(c => (
-                    <option key={c.id || c.name} value={c.name}>
-                      {c.site ? `${c.name} (${c.site})` : c.name}
+                    <option key={c.id} value={c.id}>
+                      🏢 {c.name} {c.code ? `[${c.code}]` : ''} {c.site ? `(${c.site})` : ''}
                     </option>
                   ))}
-                </datalist>
+                </select>
+
+                <label style={{ display: 'block', fontSize: '0.78rem', color: '#aaa', marginBottom: '0.25rem' }}>
+                  고객사명 및 현장 사이트 세부 명칭 *
+                </label>
+                <input
+                  type="text"
+                  value={formSite}
+                  onChange={(e) => setFormSite(e.target.value)}
+                  placeholder="예: (주)대성물류 천안센터 (1층 통신실)"
+                  style={{ width: '100%', padding: '0.65rem 0.75rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: 'white', fontSize: '0.85rem' }}
+                />
               </div>
 
               {/* Date & Time Controls */}

@@ -165,7 +165,7 @@ function ClientDetailPageComponent() {
           setClient(found);
           setNotFound(false);
           initClientForms(found);
-          fetchClientHistory(found.name);
+          fetchClientHistory(found.name, found.id);
         } else {
           setNotFound(true);
           setClient(null);
@@ -191,10 +191,13 @@ function ClientDetailPageComponent() {
     }
   };
 
-  const fetchClientHistory = async (clientName) => {
+  const fetchClientHistory = async (clientName, cId = clientId) => {
     setHistoryLoading(true);
     try {
-      const res = await fetch(`/api/clients/history?clientName=${encodeURIComponent(clientName)}`);
+      const q = new URLSearchParams();
+      if (cId) q.set('clientId', String(cId));
+      if (clientName) q.set('clientName', clientName);
+      const res = await fetch(`/api/clients/history?${q.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setHistory(Array.isArray(data) ? data : []);
@@ -1192,7 +1195,7 @@ function ClientDetailPageComponent() {
                 style={{ padding: '0.45rem 0.75rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.82rem', width: '220px' }}
               />
 
-              <button onClick={() => fetchClientHistory(client.name)} className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.45rem 0.75rem' }}>
+              <button onClick={() => fetchClientHistory(client.name, client.id)} className="btn btn-secondary" style={{ fontSize: '0.8rem', padding: '0.45rem 0.75rem' }}>
                 🔄 새로고침
               </button>
             </div>
@@ -1203,49 +1206,82 @@ function ClientDetailPageComponent() {
           ) : filteredHistory.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               {filteredHistory.map(h => (
-                <div key={h.id} style={{ background: 'var(--bg-main)', padding: '1.1rem 1.25rem', borderRadius: '10px', border: `1px solid ${h.badgeColor || 'var(--border-color)'}`, borderLeft: `5px solid ${h.badgeColor || 'var(--color-accent)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.35rem' }}>
+                <div key={h.id} style={{ background: 'var(--bg-main)', padding: '1.15rem 1.3rem', borderRadius: '10px', border: `1px solid ${h.badgeColor || 'var(--border-color)'}`, borderLeft: `5px solid ${h.badgeColor || 'var(--color-accent)'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.85rem' }}>
+                  <div style={{ flex: 1, minWidth: '280px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.45rem', flexWrap: 'wrap' }}>
+                      {h.rawId && (
+                        <span style={{ fontSize: '0.75rem', fontFamily: 'monospace', background: 'rgba(255,255,255,0.08)', color: '#FFB703', padding: '0.15rem 0.45rem', borderRadius: '4px', fontWeight: 700 }}>
+                          {h.rawId}
+                        </span>
+                      )}
                       <span className="badge" style={{ background: h.badgeColor || 'var(--color-primary)', color: '#fff', fontSize: '0.78rem', fontWeight: 700 }}>
                         {h.category}
                       </span>
-                      <span style={{ fontSize: '0.8rem', color: '#aaa', fontWeight: 600 }}>📅 {h.date}</span>
+                      {h.displayWorkType && (
+                        <span style={{ fontSize: '0.78rem', background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: 600 }}>
+                          🏷️ {h.displayWorkType}
+                        </span>
+                      )}
+                      <span style={{ fontSize: '0.8rem', color: '#aaa', fontWeight: 600 }}>
+                        📅 {h.periodText || h.date}
+                      </span>
+                      {h.weekendsText && (
+                        <span style={{ fontSize: '0.72rem', background: h.includeWeekends ? 'rgba(56,176,0,0.15)' : 'rgba(255,255,255,0.05)', color: h.includeWeekends ? '#38B000' : '#888', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
+                          {h.weekendsText}
+                        </span>
+                      )}
                       <span className="badge" style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: '0.75rem' }}>
                         {h.status}
                       </span>
                     </div>
 
+                    {h.site && (
+                      <div style={{ fontSize: '0.82rem', color: '#aaa', marginBottom: '0.35rem' }}>
+                        📍 현장/사이트: <span style={{ color: '#fff', fontWeight: 600 }}>{h.site}</span>
+                      </div>
+                    )}
+
                     <h3
-                      style={{ fontSize: '1rem', fontWeight: 700, color: '#00B4D8', margin: 0, marginBottom: '0.3rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                      style={{ fontSize: '1.05rem', fontWeight: 700, color: '#00B4D8', margin: 0, marginBottom: '0.4rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'underline', textUnderlineOffset: '3px' }}
                       onClick={() => setSelectedHistoryItem(h)}
                       title="클릭하여 상세 정보 보기"
                     >
                       🔍 {h.title}
                     </h3>
-                    <div style={{ fontSize: '0.85rem', color: '#ccc', lineHeight: '1.5' }}>{h.content}</div>
+                    <div style={{ fontSize: '0.85rem', color: '#ccc', lineHeight: '1.5', whiteSpace: 'pre-line' }}>{h.content}</div>
+
                     {Array.isArray(h.files) && h.files.length > 0 ? (
-                      <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <div style={{ marginTop: '0.6rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                         {h.files.map((f, fIdx) => (
-                          <a key={fIdx} href={f.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.8rem', color: '#00B4D8', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(0,180,216,0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid rgba(0,180,216,0.2)' }}>
+                          <a key={fIdx} href={f.filePath} target="_blank" rel="noreferrer" download={f.fileName} style={{ fontSize: '0.8rem', color: '#00B4D8', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(0,180,216,0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid rgba(0,180,216,0.2)' }}>
                             📁 {f.fileName}
                           </a>
                         ))}
                       </div>
                     ) : h.fileName && h.filePath ? (
-                      <div style={{ marginTop: '0.4rem' }}>
-                        <a href={h.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.8rem', color: '#00B4D8', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(0,180,216,0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <a href={h.filePath} target="_blank" rel="noreferrer" download={h.fileName} style={{ fontSize: '0.8rem', color: '#00B4D8', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(0,180,216,0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
                           📁 {h.fileName}
                         </a>
                       </div>
                     ) : null}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {(h.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin').map((w, idx) => (
-                      <span key={idx} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600 }}>
-                        👤 {w}
-                      </span>
-                    ))}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end' }}>
+                      {(h.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin').map((w, idx) => (
+                        <span key={idx} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600 }}>
+                          👤 {w}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setSelectedHistoryItem(h)}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.78rem', padding: '0.3rem 0.65rem' }}
+                    >
+                      상세보기 &gt;
+                    </button>
                   </div>
                 </div>
               ))}
@@ -2028,30 +2064,63 @@ function ClientDetailPageComponent() {
       {/* 🔍 작업/장애 이력 상세 모달 */}
       {selectedHistoryItem && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
-          <div className="panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+          <div className="panel" style={{ width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-                  <span className="badge" style={{ background: selectedHistoryItem.badgeColor || 'var(--color-primary)', color: '#fff', fontSize: '0.78rem', fontWeight: 700 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                  {selectedHistoryItem.rawId && (
+                    <span style={{ fontSize: '0.78rem', fontFamily: 'monospace', background: 'rgba(255,255,255,0.08)', color: '#FFB703', padding: '0.2rem 0.5rem', borderRadius: '4px', fontWeight: 700 }}>
+                      {selectedHistoryItem.rawId}
+                    </span>
+                  )}
+                  <span className="badge" style={{ background: selectedHistoryItem.badgeColor || 'var(--color-primary)', color: '#fff', fontSize: '0.8rem', fontWeight: 700 }}>
                     {selectedHistoryItem.category}
                   </span>
-                  <span style={{ fontSize: '0.8rem', color: '#aaa', fontWeight: 600 }}>📅 {selectedHistoryItem.date}</span>
+                  {selectedHistoryItem.displayWorkType && (
+                    <span style={{ fontSize: '0.8rem', background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.2rem 0.55rem', borderRadius: '4px', fontWeight: 700 }}>
+                      🏷️ {selectedHistoryItem.displayWorkType}
+                    </span>
+                  )}
                   <span className="badge" style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: '0.75rem' }}>
                     {selectedHistoryItem.status}
                   </span>
                 </div>
-                <h2 className="panel-title" style={{ fontSize: '1.25rem', color: '#fff' }}>{selectedHistoryItem.title}</h2>
+                <h2 className="panel-title" style={{ fontSize: '1.3rem', color: '#fff', margin: 0 }}>
+                  {selectedHistoryItem.rawTitle || selectedHistoryItem.title}
+                </h2>
               </div>
-              <button onClick={() => setSelectedHistoryItem(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+              <button onClick={() => setSelectedHistoryItem(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.3rem', cursor: 'pointer', padding: '0.2rem' }}>✕</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.9rem' }}>
+              {/* Detailed 2-column info panel matching Network Management */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.8rem', background: 'rgba(255,255,255,0.03)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                <div>
+                  <span style={{ color: '#aaa', fontSize: '0.82rem', display: 'block' }}>🏢 고객사 (사이트명):</span>
+                  <strong style={{ color: '#fff', fontSize: '0.95rem' }}>{selectedHistoryItem.site || client.name}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#aaa', fontSize: '0.82rem', display: 'block' }}>📅 일시 / 기간:</span>
+                  <strong style={{ color: '#fff', fontSize: '0.95rem' }}>{selectedHistoryItem.periodText || selectedHistoryItem.date}</strong>
+                </div>
+                <div>
+                  <span style={{ color: '#aaa', fontSize: '0.82rem', display: 'block' }}>🗓️ 주말/공휴일 포함:</span>
+                  <strong style={{ color: selectedHistoryItem.includeWeekends ? '#38B000' : '#ddd', fontSize: '0.9rem' }}>
+                    {selectedHistoryItem.weekendsText || (selectedHistoryItem.includeWeekends ? '포함' : '미포함 (평일만)')}
+                  </strong>
+                </div>
+                <div>
+                  <span style={{ color: '#aaa', fontSize: '0.82rem', display: 'block' }}>⚡ 진행 상태:</span>
+                  <strong style={{ color: '#00B4D8', fontSize: '0.9rem' }}>{selectedHistoryItem.status || '진행중'}</strong>
+                </div>
+              </div>
+
               <div>
                 <span style={{ color: '#aaa', display: 'block', marginBottom: '0.4rem', fontSize: '0.85rem' }}>👷 배정 작업자:</span>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   {(selectedHistoryItem.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin').length > 0 ? (
                     (selectedHistoryItem.workers || []).filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin').map((w, idx) => (
-                      <span key={idx} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.25rem 0.6rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}>
+                      <span key={idx} style={{ background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.25rem 0.65rem', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 600 }}>
                         👤 {w}
                       </span>
                     ))
@@ -2061,8 +2130,8 @@ function ClientDetailPageComponent() {
                 </div>
               </div>
 
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', borderLeft: '3px solid var(--color-accent)' }}>
-                <span style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>📝 상세 작업 및 조치 내용:</span>
+              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.1rem', borderRadius: '8px', borderLeft: '3px solid var(--color-accent)' }}>
+                <span style={{ fontSize: '0.82rem', color: '#aaa', display: 'block', marginBottom: '0.4rem', fontWeight: 600 }}>📝 상세 작업 및 조치 내용:</span>
                 <p style={{ color: '#ddd', fontSize: '0.9rem', lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>
                   {selectedHistoryItem.content || '작성된 상세 내용이 없습니다.'}
                 </p>
@@ -2071,18 +2140,18 @@ function ClientDetailPageComponent() {
               {/* Attachments */}
               {((Array.isArray(selectedHistoryItem.files) && selectedHistoryItem.files.length > 0) || (selectedHistoryItem.fileName && selectedHistoryItem.filePath)) && (
                 <div style={{ background: 'rgba(0,180,216,0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(0,180,216,0.2)' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#00B4D8', fontWeight: 700, display: 'block', marginBottom: '0.4rem' }}>
-                    📁 첨부파일 ({selectedHistoryItem.files?.length || 1}개):
+                  <span style={{ fontSize: '0.82rem', color: '#00B4D8', fontWeight: 700, display: 'block', marginBottom: '0.5rem' }}>
+                    📁 관련 첨부파일 ({selectedHistoryItem.files?.length || 1}개):
                   </span>
-                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     {Array.isArray(selectedHistoryItem.files) && selectedHistoryItem.files.length > 0 ? (
                       selectedHistoryItem.files.map((f, i) => (
-                        <a key={i} href={f.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.82rem', color: '#00B4D8', background: 'rgba(0,180,216,0.15)', padding: '0.3rem 0.7rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(0,180,216,0.3)' }}>
+                        <a key={i} href={f.filePath} target="_blank" rel="noreferrer" download={f.fileName} style={{ fontSize: '0.82rem', color: '#00B4D8', background: 'rgba(0,180,216,0.15)', padding: '0.35rem 0.75rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(0,180,216,0.3)' }}>
                           📥 {f.fileName} {f.fileSize ? `(${f.fileSize})` : ''}
                         </a>
                       ))
                     ) : (
-                      <a href={selectedHistoryItem.filePath} target="_blank" rel="noreferrer" style={{ fontSize: '0.82rem', color: '#00B4D8', background: 'rgba(0,180,216,0.15)', padding: '0.3rem 0.7rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(0,180,216,0.3)' }}>
+                      <a href={selectedHistoryItem.filePath} target="_blank" rel="noreferrer" download={selectedHistoryItem.fileName} style={{ fontSize: '0.82rem', color: '#00B4D8', background: 'rgba(0,180,216,0.15)', padding: '0.35rem 0.75rem', borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', border: '1px solid rgba(0,180,216,0.3)' }}>
                         📥 {selectedHistoryItem.fileName}
                       </a>
                     )}
