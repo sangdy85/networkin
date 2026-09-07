@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
 
+import * as XLSX from 'xlsx';
+
 const CONTRACT_STATUSES = ['유지보수 계약중', '프로젝트 진행중', '계약 완료', '상담중'];
 
 export default function ClientDetailPage() {
@@ -74,7 +76,7 @@ export default function ClientDetailPage() {
   const [formHasPeriodicInspection, setFormHasPeriodicInspection] = useState(true);
   const [formInspectionCycle, setFormInspectionCycle] = useState('매월');
 
-  // Network Config State
+  // Network & Maintenance Equipment Config State
   const [netConfig, setNetConfig] = useState({
     isp: '',
     ipSubnet: '',
@@ -85,10 +87,24 @@ export default function ClientDetailPage() {
     notes: ''
   });
 
-  // Equipment Add Form inside Tab 3
-  const [newEquipType, setNewEquipType] = useState('UTM 방화벽');
-  const [newEquipModel, setNewEquipModel] = useState('');
-  const [newEquipLocation, setNewEquipLocation] = useState('');
+  // Maintenance Equipment Filter & Search State
+  const [equipFilter, setEquipFilter] = useState('전체');
+  const [equipSearch, setEquipSearch] = useState('');
+
+  // Single Equipment Add/Edit Modal State
+  const [isEquipModalOpen, setIsEquipModalOpen] = useState(false);
+  const [editingEquipIndex, setEditingEquipIndex] = useState(null);
+  const [equipType, setEquipType] = useState('UTM 방화벽');
+  const [equipModel, setEquipModel] = useState('');
+  const [equipSerial, setEquipSerial] = useState('');
+  const [equipIsContracted, setEquipIsContracted] = useState('계약');
+  const [equipLocation, setEquipLocation] = useState('');
+  const [equipMemo, setEquipMemo] = useState('');
+
+  // Excel Batch Upload Modal State
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [excelParsedData, setExcelParsedData] = useState([]);
+  const [excelImportMode, setExcelImportMode] = useState('append'); // 'append' | 'replace'
 
   // Fetch client details, users, documents & inspections
   useEffect(() => {
@@ -174,7 +190,18 @@ export default function ClientDetailPage() {
       if (res.ok) {
         const data = await res.json();
         setInspectionTemplates(data.templates || []);
-        setInspectionScans(data.scans || []);
+
+        // Sort scans by inspectionDate descending (most recent date first)
+        const sortedScans = (data.scans || []).sort((a, b) => {
+          const dateA = a.inspectionDate || a.inspection_date || '';
+          const dateB = b.inspectionDate || b.inspection_date || '';
+          if (dateA !== dateB) {
+            return dateB.localeCompare(dateA); // Newest inspection date first
+          }
+          return (b.id || 0) - (a.id || 0);
+        });
+
+        setInspectionScans(sortedScans);
       }
     } catch (e) {
       console.error('Fetch inspections error', e);
@@ -479,8 +506,8 @@ export default function ClientDetailPage() {
     }
   };
 
-  // Save Network Config
-  const handleSaveNetworkConfig = async () => {
+  // DB Save Helper for Maintenance Equipments
+  const saveEquipmentsToDB = async (configToSave) => {
     const payload = {
       id: client.id,
       name: client.name,
@@ -492,7 +519,7 @@ export default function ClientDetailPage() {
       engineer_primary: client.engineer_primary,
       engineer_secondary: client.engineer_secondary,
       memo: client.memo,
-      network_config: netConfig
+      network_config: configToSave
     };
 
     try {
@@ -501,37 +528,209 @@ export default function ClientDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-
       if (res.ok) {
-        alert('네트워크 구성 정보 및 인프라 설정이 저장되었습니다!');
         fetchClientDetail();
       } else {
-        alert('저장 실패');
+        alert('유지보수 장비 정보 저장 실패');
       }
     } catch (err) {
       alert(`저장 오류: ${err.message}`);
     }
   };
 
-  // Equipment Add & Remove
-  const handleAddEquipment = () => {
-    if (!newEquipModel.trim()) return;
-    setNetConfig({
-      ...netConfig,
-      equipments: [
-        ...netConfig.equipments,
-        { type: newEquipType, model: newEquipModel.trim(), location: newEquipLocation.trim() || '서버실' }
-      ]
-    });
-    setNewEquipModel('');
-    setNewEquipLocation('');
+  // Open Single Equipment Add Modal
+  const handleOpenAddEquipModal = () => {
+    setEditingEquipIndex(null);
+    setEquipType('UTM 방화벽');
+    setEquipModel('');
+    setEquipSerial('');
+    setEquipIsContracted('계약');
+    setEquipLocation('');
+    setEquipMemo('');
+    setIsEquipModalOpen(true);
   };
 
-  const handleRemoveEquipment = (index) => {
-    setNetConfig({
-      ...netConfig,
-      equipments: netConfig.equipments.filter((_, idx) => idx !== index)
-    });
+  // Open Single Equipment Edit Modal
+  const handleOpenEditEquipModal = (index) => {
+    const item = netConfig.equipments[index];
+    if (!item) return;
+    setEditingEquipIndex(index);
+    setEquipType(item.type || item.name || 'UTM 방화벽');
+    setEquipModel(item.model || '');
+    setEquipSerial(item.serial || '');
+    setEquipIsContracted(item.isContracted || '계약');
+    setEquipLocation(item.location || '');
+    setEquipMemo(item.memo || '');
+    setIsEquipModalOpen(true);
+  };
+
+  // Save Single Equipment Item (Add or Edit)
+  const handleSaveSingleEquip = async () => {
+    if (!equipModel.trim() && !equipSerial.trim()) {
+      alert('모델명 또는 시리얼 번호를 입력해주세요.');
+      return;
+    }
+
+    const newItem = {
+      type: equipType.trim(),
+      model: equipModel.trim(),
+      serial: equipSerial.trim(),
+      isContracted: equipIsContracted,
+      location: equipLocation.trim(),
+      memo: equipMemo.trim()
+    };
+
+    let updatedEquipments = [...netConfig.equipments];
+    if (editingEquipIndex !== null) {
+      updatedEquipments[editingEquipIndex] = newItem;
+    } else {
+      updatedEquipments.push(newItem);
+    }
+
+    const updatedConfig = { ...netConfig, equipments: updatedEquipments };
+    setNetConfig(updatedConfig);
+    setIsEquipModalOpen(false);
+
+    await saveEquipmentsToDB(updatedConfig);
+  };
+
+  // Remove Single Equipment Item
+  const handleRemoveEquip = async (index) => {
+    if (confirm('선택한 유지보수 대상 장비를 목록에서 삭제하시겠습니까?')) {
+      const updatedEquipments = netConfig.equipments.filter((_, idx) => idx !== index);
+      const updatedConfig = { ...netConfig, equipments: updatedEquipments };
+      setNetConfig(updatedConfig);
+      await saveEquipmentsToDB(updatedConfig);
+    }
+  };
+
+  // Toggle Contracted Status (계약 <-> 미계약)
+  const handleToggleContractStatus = async (index) => {
+    const updatedEquipments = [...netConfig.equipments];
+    const curr = updatedEquipments[index].isContracted || '계약';
+    updatedEquipments[index].isContracted = (curr === '계약') ? '미계약' : '계약';
+
+    const updatedConfig = { ...netConfig, equipments: updatedEquipments };
+    setNetConfig(updatedConfig);
+    await saveEquipmentsToDB(updatedConfig);
+  };
+
+  // Excel Template Download Function
+  const handleDownloadExcelTemplate = () => {
+    const templateData = [
+      {
+        '장비명': 'UTM 방화벽',
+        '모델명': 'FortiGate 100F',
+        '시리얼 번호': 'FG100F-8821941',
+        '실제 계약 여부': '계약',
+        '설치 위치': '3층 메인 서버실 랙 1',
+        '비고': '2026년 정기점검 대상'
+      },
+      {
+        '장비명': '백본 스위치',
+        '모델명': 'Cisco Catalyst 9300',
+        '시리얼 번호': 'C9300-48P-0012',
+        '실제 계약 여부': '계약',
+        '설치 위치': '3층 메인 서버실 랙 1',
+        '비고': '유지보수 계약 포함'
+      },
+      {
+        '장비명': '무선 AP',
+        '모델명': 'Aruba AP-505',
+        '시리얼 번호': 'AP505-998123',
+        '실제 계약 여부': '미계약',
+        '설치 위치': '2층 전구역',
+        '비고': '신규 구매 검토 중'
+      }
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '유지보수대상장비양식');
+
+    worksheet['!cols'] = [
+      { wch: 15 },
+      { wch: 25 },
+      { wch: 22 },
+      { wch: 15 },
+      { wch: 25 },
+      { wch: 25 }
+    ];
+
+    const safeClientName = client?.name ? client.name.replace(/[/\\?%*:|"<>]/g, '_') : '고객사';
+    XLSX.writeFile(workbook, `유지보수_대상장비_업로드양식_${safeClientName}.xlsx`);
+  };
+
+  // Excel File Input Change Handler
+  const handleExcelFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        const parsed = data.map((row) => {
+          const type = row['장비명'] || row['장비 구분'] || row['구분'] || row['장비'] || row['type'] || '기타 장비';
+          const model = row['모델명'] || row['모델'] || row['model'] || '';
+          const serial = row['시리얼 번호'] || row['시리얼번호'] || row['시리얼'] || row['S/N'] || row['SN'] || row['serial'] || '';
+          const isContractedRaw = String(row['실제 계약 여부'] || row['계약 여부'] || row['계약여부'] || row['계약 상태'] || row['계약'] || '계약').trim();
+          const isContracted = (isContractedRaw.includes('미계약') || isContractedRaw.includes('N') || isContractedRaw === 'false') ? '미계약' : '계약';
+          const location = row['설치 위치'] || row['설치위치'] || row['위치'] || row['location'] || '';
+          const memo = row['비고'] || row['메모'] || row['notes'] || row['memo'] || '';
+
+          return {
+            type: String(type).trim(),
+            model: String(model).trim(),
+            serial: String(serial).trim(),
+            isContracted,
+            location: String(location).trim(),
+            memo: String(memo).trim()
+          };
+        }).filter(item => item.model || item.serial || item.type);
+
+        if (parsed.length === 0) {
+          alert('엑셀 파일에서 유효한 장비 데이터를 찾을 수 없습니다.');
+          return;
+        }
+
+        setExcelParsedData(parsed);
+        setIsExcelModalOpen(true);
+      } catch (err) {
+        alert(`엑셀 파일 읽기 오류: ${err.message}`);
+      }
+    };
+    reader.readAsBinaryString(file);
+    // reset input value so re-uploading same file triggers change event
+    e.target.value = '';
+  };
+
+  // Confirm Excel Batch Import
+  const handleConfirmExcelImport = async () => {
+    if (excelParsedData.length === 0) {
+      alert('업로드할 장비 데이터가 없습니다.');
+      return;
+    }
+
+    let updatedEquipments = [];
+    if (excelImportMode === 'replace') {
+      updatedEquipments = [...excelParsedData];
+    } else {
+      updatedEquipments = [...netConfig.equipments, ...excelParsedData];
+    }
+
+    const updatedConfig = { ...netConfig, equipments: updatedEquipments };
+    setNetConfig(updatedConfig);
+
+    await saveEquipmentsToDB(updatedConfig);
+    alert(`엑셀 장비 데이터 ${excelParsedData.length}건이 성공적으로 ${excelImportMode === 'replace' ? '덮어쓰기' : '추가'} 저장되었습니다.`);
+    setIsExcelModalOpen(false);
+    setExcelParsedData([]);
   };
 
   // Delete Client
@@ -669,7 +868,7 @@ export default function ClientDetailPage() {
         </div>
 
         <div className="panel" style={{ padding: '1rem', background: 'rgba(255,183,3,0.06)', borderLeft: '4px solid #FFB703' }}>
-          <div style={{ fontSize: '0.78rem', color: '#aaa' }}>구축 인프라 장비</div>
+          <div style={{ fontSize: '0.78rem', color: '#aaa' }}>유지보수 대상 장비</div>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#FFB703', marginTop: '0.2rem' }}>
             {netConfig.equipments.length} <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>대</span>
           </div>
@@ -899,164 +1098,209 @@ export default function ClientDetailPage() {
         </div>
       )}
 
-      {/* TAB 3: Network Config & Equipment Asset Manager */}
-      {activeTab === 'network' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
-          {/* ISP Line & IP Config Panel */}
-          <div className="panel">
-            <div className="panel-header" style={{ marginBottom: '1rem' }}>
-              <h2 className="panel-title" style={{ fontSize: '1.1rem', color: '#00B4D8' }}>🌐 네트워크 회선 및 메인 IP 대역 설정</h2>
-            </div>
+      {/* TAB 3: Maintenance Target Equipment Manager */}
+      {activeTab === 'network' && (() => {
+        const totalEquipCount = netConfig.equipments.length;
+        const contractedEquipCount = netConfig.equipments.filter(e => (e.isContracted || '계약') === '계약').length;
+        const nonContractedEquipCount = totalEquipCount - contractedEquipCount;
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
-              <div>
-                <label style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>ISP 통신사 / 회선 종류</label>
-                <input
-                  type="text"
-                  placeholder="예: KT 전용회선 (1G / 10G)"
-                  value={netConfig.isp}
-                  onChange={e => setNetConfig({ ...netConfig, isp: e.target.value })}
-                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.85rem' }}
-                />
-              </div>
+        const filteredEquipments = netConfig.equipments.filter((eq) => {
+          const isContractedStr = eq.isContracted || '계약';
+          const filterMatch = equipFilter === '전체' || isContractedStr === equipFilter;
+          const searchLower = equipSearch.toLowerCase().trim();
+          const searchMatch = !searchLower ||
+            (eq.type || eq.name || '').toLowerCase().includes(searchLower) ||
+            (eq.model || '').toLowerCase().includes(searchLower) ||
+            (eq.serial || '').toLowerCase().includes(searchLower) ||
+            (eq.location || '').toLowerCase().includes(searchLower) ||
+            (eq.memo || '').toLowerCase().includes(searchLower);
 
-              <div>
-                <label style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>메인 IP 대역 (CIDR)</label>
-                <input
-                  type="text"
-                  placeholder="예: 211.234.100.0/24"
-                  value={netConfig.ipSubnet}
-                  onChange={e => setNetConfig({ ...netConfig, ipSubnet: e.target.value })}
-                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.85rem' }}
-                />
-              </div>
+          return filterMatch && searchMatch;
+        });
 
-              <div>
-                <label style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>게이트웨이 (Gateway)</label>
-                <input
-                  type="text"
-                  placeholder="예: 211.234.100.1"
-                  value={netConfig.gateway}
-                  onChange={e => setNetConfig({ ...netConfig, gateway: e.target.value })}
-                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.85rem' }}
-                />
-              </div>
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            
+            {/* Equipment Summary Banner */}
+            <div className="panel" style={{ padding: '1.25rem', background: 'rgba(255,183,3,0.04)', borderLeft: '5px solid #FFB703' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <div>
+                  <h2 className="panel-title" style={{ fontSize: '1.15rem', color: '#FFB703', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    🛠️ 유지보수 대상 장비 관리 ({totalEquipCount}대)
+                  </h2>
+                  <p style={{ fontSize: '0.82rem', color: '#aaa', margin: 0, marginTop: '0.3rem' }}>
+                    고객사와 실제 계약된 유지보수 대상 장비인지 시리얼 번호(Serial No)로 직접 확인 및 엑셀 일괄 등록
+                  </p>
+                </div>
 
-              <div>
-                <label style={{ fontSize: '0.8rem', color: '#aaa', display: 'block', marginBottom: '0.3rem' }}>Primary DNS</label>
-                <input
-                  type="text"
-                  placeholder="예: 168.126.63.1"
-                  value={netConfig.dnsPrimary}
-                  onChange={e => setNetConfig({ ...netConfig, dnsPrimary: e.target.value })}
-                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.85rem' }}
-                />
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div style={{ background: 'var(--bg-main)', padding: '0.45rem 0.9rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#aaa' }}>전체 장비: </span>
+                    <strong style={{ color: '#fff', fontSize: '0.95rem' }}>{totalEquipCount}대</strong>
+                  </div>
+                  <div style={{ background: 'rgba(56,176,0,0.1)', padding: '0.45rem 0.9rem', borderRadius: '8px', border: '1px solid rgba(56,176,0,0.3)', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#aaa' }}>실제 계약 장비: </span>
+                    <strong style={{ color: '#38B000', fontSize: '0.95rem' }}>✅ {contractedEquipCount}대</strong>
+                  </div>
+                  <div style={{ background: 'rgba(230,57,70,0.1)', padding: '0.45rem 0.9rem', borderRadius: '8px', border: '1px solid rgba(230,57,70,0.3)', fontSize: '0.85rem' }}>
+                    <span style={{ color: '#aaa' }}>미계약 / 검토필요: </span>
+                    <strong style={{ color: '#E63946', fontSize: '0.95rem' }}>⚠️ {nonContractedEquipCount}대</strong>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {/* Action Bar & Filter */}
+            <div className="panel">
+              <div className="panel-header" style={{ marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    value={equipFilter}
+                    onChange={e => setEquipFilter(e.target.value)}
+                    style={{ padding: '0.5rem 0.85rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.85rem', fontWeight: 600 }}
+                  >
+                    <option value="전체">전체 장비 (계약/미계약)</option>
+                    <option value="계약">✅ 실제 계약 대상 장비</option>
+                    <option value="미계약">⚠️ 미계약 장비 (확인필요)</option>
+                  </select>
+
+                  <input
+                    type="text"
+                    placeholder="장비명, 모델명, 시리얼 번호, 위치 검색..."
+                    value={equipSearch}
+                    onChange={e => setEquipSearch(e.target.value)}
+                    style={{ padding: '0.5rem 0.85rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.85rem', width: '250px' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={handleDownloadExcelTemplate}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.95rem', borderColor: '#38B000', color: '#38B000', fontWeight: 600 }}
+                  >
+                    📥 엑셀 템플릿 다운로드
+                  </button>
+
+                  <label
+                    className="btn btn-accent"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.95rem', background: '#38B000', borderColor: '#38B000', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', margin: 0, fontWeight: 700 }}
+                  >
+                    📁 엑셀 일괄 업로드
+                    <input
+                      type="file"
+                      accept=".xlsx, .xls, .csv"
+                      onChange={handleExcelFileChange}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+
+                  <button
+                    onClick={handleOpenAddEquipModal}
+                    className="btn btn-accent"
+                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.95rem', fontWeight: 700 }}
+                  >
+                    + 장비 개별 등록
+                  </button>
+                </div>
+              </div>
+
+              {/* Maintenance Equipment Table */}
+              {filteredEquipments.length > 0 ? (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '130px' }}>장비 구분/명칭</th>
+                        <th>모델명</th>
+                        <th>시리얼 번호 (Serial No)</th>
+                        <th style={{ width: '130px', textAlign: 'center' }}>실제 계약 여부</th>
+                        <th>설치 장소 / 위치</th>
+                        <th>비고</th>
+                        <th style={{ width: '100px', textAlign: 'center' }}>관리</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredEquipments.map((eq, originalIdx) => {
+                        const idx = netConfig.equipments.indexOf(eq);
+                        const isContracted = (eq.isContracted || '계약') === '계약';
+
+                        return (
+                          <tr key={originalIdx}>
+                            <td>
+                              <span style={{ fontSize: '0.8rem', background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.25rem 0.6rem', borderRadius: '4px', fontWeight: 700 }}>
+                                {eq.type || eq.name || '기타 장비'}
+                              </span>
+                            </td>
+                            <td style={{ fontWeight: 700, color: '#fff' }}>
+                              {eq.model || '-'}
+                            </td>
+                            <td>
+                              <code style={{ fontSize: '0.85rem', background: 'rgba(255,255,255,0.08)', color: '#FFB703', padding: '0.2rem 0.5rem', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 700 }}>
+                                {eq.serial || '시리얼 미입력'}
+                              </code>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleContractStatus(idx)}
+                                title="클릭하여 계약 / 미계약 상태 전환"
+                                style={{
+                                  background: isContracted ? 'rgba(56,176,0,0.15)' : 'rgba(230,57,70,0.15)',
+                                  color: isContracted ? '#38B000' : '#E63946',
+                                  border: `1px solid ${isContracted ? 'rgba(56,176,0,0.4)' : 'rgba(230,57,70,0.4)'}`,
+                                  padding: '0.25rem 0.6rem',
+                                  borderRadius: '6px',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                {isContracted ? '✅ 계약 대상' : '⚠️ 미계약'}
+                              </button>
+                            </td>
+                            <td style={{ color: '#ccc', fontSize: '0.85rem' }}>
+                              {eq.location ? `📍 ${eq.location}` : '-'}
+                            </td>
+                            <td style={{ color: '#aaa', fontSize: '0.82rem' }}>
+                              {eq.memo || '-'}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditEquipModal(idx)}
+                                  title="장비 정보 수정"
+                                  style={{ background: 'none', border: 'none', color: '#00B4D8', cursor: 'pointer', fontSize: '0.95rem' }}
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveEquip(idx)}
+                                  title="장비 삭제"
+                                  style={{ background: 'none', border: 'none', color: '#E63946', cursor: 'pointer', fontSize: '0.95rem' }}
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ padding: '3.5rem', textAlign: 'center', color: '#aaa', background: 'var(--bg-main)', borderRadius: '8px' }}>
+                  등록된 유지보수 대상 장비가 없습니다. [📥 엑셀 템플릿 다운로드] 후 [📁 엑셀 일괄 업로드]를 진행하거나 상단 [+ 장비 개별 등록] 버튼을 이용하세요.
+                </div>
+              )}
+            </div>
+
           </div>
-
-          {/* Equipment Assets Panel */}
-          <div className="panel">
-            <div className="panel-header" style={{ marginBottom: '1rem' }}>
-              <h2 className="panel-title" style={{ fontSize: '1.1rem' }}>💻 구축 인프라 및 장비 자산 관리 ({netConfig.equipments.length}대)</h2>
-            </div>
-
-            {/* Add Equipment Row */}
-            <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)', marginBottom: '1.25rem', display: 'grid', gridTemplateColumns: '1.2fr 2fr 1.2fr auto', gap: '0.6rem', alignItems: 'center' }}>
-              <select
-                value={newEquipType}
-                onChange={e => setNewEquipType(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: '#0B132B', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.85rem' }}
-              >
-                <option value="UTM 방화벽">UTM 방화벽</option>
-                <option value="백본 스위치">백본 스위치</option>
-                <option value="L2/L3 스위치">L2/L3 스위치</option>
-                <option value="무선 AP">무선 AP</option>
-                <option value="IPT 교환기">IPT 교환기</option>
-                <option value="서버/NAS">서버/NAS</option>
-                <option value="기타 인프라">기타 인프라</option>
-              </select>
-
-              <input
-                type="text"
-                placeholder="장비 모델명 및 시리얼 (예: FortiGate 100F / FG100F-8821)"
-                value={newEquipModel}
-                onChange={e => setNewEquipModel(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.85rem' }}
-              />
-
-              <input
-                type="text"
-                placeholder="설치 위치 (예: 3층 서버실 랙 1)"
-                value={newEquipLocation}
-                onChange={e => setNewEquipLocation(e.target.value)}
-                style={{ padding: '0.6rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.85rem' }}
-              />
-
-              <button type="button" onClick={handleAddEquipment} className="btn btn-accent" style={{ padding: '0.6rem 1.2rem', fontWeight: 600 }}>
-                + 장비 추가
-              </button>
-            </div>
-
-            {netConfig.equipments.length > 0 ? (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>장비 구분</th>
-                    <th>모델명 및 정보</th>
-                    <th>설치 장소</th>
-                    <th style={{ width: '80px', textAlign: 'center' }}>삭제</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {netConfig.equipments.map((eq, idx) => (
-                    <tr key={idx}>
-                      <td>
-                        <span style={{ fontSize: '0.8rem', background: 'rgba(0,180,216,0.15)', color: '#00B4D8', padding: '0.25rem 0.6rem', borderRadius: '4px', fontWeight: 600 }}>
-                          {eq.type}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 700, color: '#fff' }}>{eq.model}</td>
-                      <td style={{ color: '#ccc' }}>📍 {eq.location}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button type="button" onClick={() => handleRemoveEquipment(idx)} style={{ background: 'none', border: 'none', color: '#E63946', cursor: 'pointer', fontSize: '1rem' }}>
-                          🗑️
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div style={{ padding: '2.5rem', textAlign: 'center', color: '#aaa', background: 'var(--bg-main)', borderRadius: '8px' }}>
-                등록된 구축 장비 자산이 없습니다. 상단 입력창에서 장비를 추가하세요.
-              </div>
-            )}
-          </div>
-
-          {/* Config Notes & Save */}
-          <div className="panel">
-            <div className="panel-header" style={{ marginBottom: '0.75rem' }}>
-              <h2 className="panel-title" style={{ fontSize: '1.1rem' }}>📌 네트워크 이중화 & 기술 구성 특이사항 메모</h2>
-            </div>
-            <textarea
-              rows={4}
-              value={netConfig.notes}
-              onChange={e => setNetConfig({ ...netConfig, notes: e.target.value })}
-              placeholder="네트워크 이중화 설정, 포트 포워딩, VLAN 구역 분리 및 정책 특이사항을 기록하세요..."
-              style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-color)', color: '#fff', fontSize: '0.9rem', resize: 'vertical' }}
-            ></textarea>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-              <button type="button" onClick={handleSaveNetworkConfig} className="btn btn-accent" style={{ padding: '0.7rem 1.6rem', fontWeight: 700, fontSize: '0.95rem' }}>
-                💾 네트워크 구성 정보 및 장비 현황 전체 저장
-              </button>
-            </div>
-          </div>
-
-        </div>
-      )}
+        );
+      })()}
 
       {/* TAB 4: Client Document Management & Sharing */}
       {activeTab === 'docs' && (
@@ -1274,7 +1518,7 @@ export default function ClientDetailPage() {
             <div className="panel-header" style={{ marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
               <div>
                 <h2 className="panel-title" style={{ fontSize: '1.1rem', color: '#00B4D8' }}>📄 정기점검 완료 스캔본 보관소 ({inspectionScans.length}건)</h2>
-                <p style={{ fontSize: '0.82rem', color: '#aaa', margin: 0, marginTop: '0.2rem' }}>실제 점검 후 작성된 정기점검 스캔본 문서 보관 및 조회</p>
+                <p style={{ fontSize: '0.82rem', color: '#aaa', margin: 0, marginTop: '0.2rem' }}>실제 점검 후 작성된 정기점검 스캔본 문서 보관 및 조회 (📅 점검일자 최신순 정렬)</p>
               </div>
 
               <button
