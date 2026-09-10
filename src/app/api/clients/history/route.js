@@ -59,11 +59,13 @@ export async function GET(request) {
       return false;
     };
 
+    const syncedTicketIds = new Set();
+    const syncedTitlesAndSites = new Set();
+
     // 1. Network Items
     try {
       const netRows = db.prepare(`
         SELECT * FROM network_items 
-        WHERE (id NOT LIKE 'NET-MNT-%' AND (content IS NULL OR content NOT LIKE '[장애처리 연동 티켓%'))
         ORDER BY start_date DESC
       `).all();
 
@@ -85,14 +87,28 @@ export async function GET(request) {
           ? `${n.start_date} (${n.start_time || '09:00'} ~ ${n.end_time || '18:00'})`
           : `${n.start_date} ~ ${n.end_date || n.start_date} (${n.start_time || '09:00'} ~ ${n.end_time || '18:00'})`;
 
-        const displayWorkType = n.work_type === '기타' ? (n.custom_work_type || '기타작업') : n.work_type;
+        const displayWorkType = n.work_type === '기타' ? (n.custom_work_type || '기타작업') : (n.work_type || '네트워크 작업');
+
+        // Track synced ticket IDs to avoid duplicate entries from maintenance_tickets
+        if (n.id && n.id.startsWith('NET-MNT-')) {
+          syncedTicketIds.add(n.id.replace(/^NET-/, ''));
+        }
+        if (n.content) {
+          const match = n.content.match(/\[장애처리 연동 티켓\s+([^\s\]]+)\]/);
+          if (match && match[1]) {
+            syncedTicketIds.add(match[1]);
+          }
+        }
+        if (n.title && n.site) {
+          syncedTitlesAndSites.add(`${n.site.trim()}::${n.title.trim()}`);
+        }
 
         history.push({
           id: `NET-${n.id}`,
           rawId: n.id,
           type: 'network',
           category: '네트워크 관리',
-          workType: n.work_type,
+          workType: n.work_type || '작업',
           customWorkType: n.custom_work_type,
           displayWorkType: displayWorkType,
           date: n.start_date,
@@ -102,7 +118,7 @@ export async function GET(request) {
           endTime: n.end_time || '18:00',
           periodText: period,
           includeWeekends: Boolean(n.include_weekends),
-          weekendsText: Boolean(n.include_weekends) ? '주말/공휴일 포함' : '평일만',
+          weekendsText: Boolean(n.include_weekends) ? '포함' : '미포함 (평일만)',
           site: n.site,
           title: `[${displayWorkType}] ${n.title}`,
           rawTitle: n.title,
@@ -123,7 +139,6 @@ export async function GET(request) {
     try {
       const iptRows = db.prepare(`
         SELECT * FROM ipt_items 
-        WHERE (id NOT LIKE 'IPT-MNT-%' AND (content IS NULL OR content NOT LIKE '[장애처리 연동 티켓%'))
         ORDER BY start_date DESC
       `).all();
 
@@ -145,14 +160,28 @@ export async function GET(request) {
           ? `${i.start_date} (${i.start_time || '09:00'} ~ ${i.end_time || '18:00'})`
           : `${i.start_date} ~ ${i.end_date || i.start_date} (${i.start_time || '09:00'} ~ ${i.end_time || '18:00'})`;
 
-        const displayWorkType = i.work_type === '기타' ? (i.custom_work_type || '기타작업') : i.work_type;
+        const displayWorkType = i.work_type === '기타' ? (i.custom_work_type || '기타작업') : (i.work_type || 'IPT 작업');
+
+        // Track synced ticket IDs to avoid duplicate entries from maintenance_tickets
+        if (i.id && i.id.startsWith('IPT-MNT-')) {
+          syncedTicketIds.add(i.id.replace(/^IPT-/, ''));
+        }
+        if (i.content) {
+          const match = i.content.match(/\[장애처리 연동 티켓\s+([^\s\]]+)\]/);
+          if (match && match[1]) {
+            syncedTicketIds.add(match[1]);
+          }
+        }
+        if (i.title && i.site) {
+          syncedTitlesAndSites.add(`${i.site.trim()}::${i.title.trim()}`);
+        }
 
         history.push({
           id: `IPT-${i.id}`,
           rawId: i.id,
           type: 'ipt',
           category: 'IPT (인터넷전화)',
-          workType: i.work_type,
+          workType: i.work_type || '작업',
           customWorkType: i.custom_work_type,
           displayWorkType: displayWorkType,
           date: i.start_date,
@@ -162,7 +191,7 @@ export async function GET(request) {
           endTime: i.end_time || '18:00',
           periodText: period,
           includeWeekends: Boolean(i.include_weekends),
-          weekendsText: Boolean(i.include_weekends) ? '주말/공휴일 포함' : '평일만',
+          weekendsText: Boolean(i.include_weekends) ? '포함' : '미포함 (평일만)',
           site: i.site,
           title: `[${displayWorkType}] ${i.title}`,
           rawTitle: i.title,
@@ -179,10 +208,18 @@ export async function GET(request) {
       console.warn('History ipt error:', e);
     }
 
-    // 3. Maintenance Tickets
+    // 3. Maintenance Tickets (Exclude tickets already represented in Network or IPT items)
     try {
       const maintRows = db.prepare('SELECT * FROM maintenance_tickets ORDER BY date DESC').all();
       maintRows.filter(m => matchesClient(m.site, m.title, null)).forEach(m => {
+        // Skip if this ticket is already included via network_items or ipt_items
+        if (syncedTicketIds.has(m.id) || syncedTicketIds.has(m.ticket_no)) {
+          return;
+        }
+        if (m.title && m.site && syncedTitlesAndSites.has(`${m.site.trim()}::${m.title.trim()}`)) {
+          return;
+        }
+
         let workersArr = [];
         try { workersArr = JSON.parse(m.workers || '[]'); } catch (e) { workersArr = m.workers ? [m.workers] : []; }
         workersArr = workersArr.filter(w => !String(w || '').includes('마스터') && String(w || '').toLowerCase() !== 'netadmin');
@@ -198,20 +235,24 @@ export async function GET(request) {
             if (m.file_name) filesArr = [{ fileName: m.file_name, filePath: m.file_path }];
           }
         }
+
+        const displayCategory = m.category || '유지보수/장애';
+        const displayWorkType = m.category || '장애';
+
         history.push({
           id: `MAINT-${m.id}`,
           rawId: m.ticket_no || m.id,
           type: 'maintenance',
           category: '유지보수/장애',
-          workType: m.category || '장애',
-          displayWorkType: m.category || '장애',
+          workType: displayWorkType,
+          displayWorkType: displayWorkType,
           date: m.date,
           startDate: m.date,
           periodText: m.date,
           site: m.site,
-          title: `[${m.priority || '보통'}] ${m.title}`,
+          title: `[${displayWorkType}] ${m.title}`,
           rawTitle: m.title,
-          status: m.status,
+          status: m.status || '접수',
           workers: workersArr,
           content: m.resolution_note || m.site,
           badgeColor: m.priority === '긴급' ? '#E63946' : '#FF9F1C',
